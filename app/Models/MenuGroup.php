@@ -2,13 +2,19 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Model;
 
 class MenuGroup extends Model
 {
-    protected $fillable = ['name', 'order'];
+    protected $fillable = ['name', 'order', 'status'];
 
-    public function menus()
+    protected $casts = [
+        'order' => 'integer',
+        'status' => 'boolean',
+    ];
+
+    public function menus(): HasMany
     {
         return $this->hasMany(Menu::class, 'group_id')->orderBy('order');
     }

@@ -1,0 +1,13 @@
+name: Example Config
+version: 1.0.0
+schema: v1
+
+models:
+  - name: DeepSeek R1 (Free)
+    provider: ollama
+    model: deepseek-r1:1.5b
+    roles:
+      - chat
+      - edit
+      - apply
+      - autocomplete

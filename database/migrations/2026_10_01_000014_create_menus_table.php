@@ -6,28 +6,25 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('menus', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('group_id')->nullable()->constrained('menu_groups')->nullOnDelete();
+            $table->foreignId('group_id')->constrained('menu_groups')->cascadeOnDelete();
             $table->foreignId('parent_id')->nullable()->constrained('menus')->nullOnDelete();
             $table->string('title');
             $table->string('route')->nullable();
             $table->string('icon')->nullable();
             $table->string('permission')->nullable();
-            $table->integer('order')->default(0);
-            $table->boolean('is_active')->default(true);
+            $table->unsignedInteger('order')->default(0);
+            $table->boolean('status')->default(true);
             $table->timestamps();
+
+            $table->index(['group_id', 'order']);
+            $table->index(['parent_id', 'order']);
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('menus');
