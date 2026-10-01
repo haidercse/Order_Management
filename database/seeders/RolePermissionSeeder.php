@@ -47,41 +47,44 @@ class RolePermissionSeeder extends Seeder
             }
         }
 
-        $superAdmin = Role::updateOrCreate(
-            ['name' => 'super-admin', 'guard_name' => 'web'],
-            []
+        $superAdmin = Role::firstOrCreate(
+            ['name' => 'super-admin', 'guard_name' => 'web']
         );
 
-        $warehouse = Role::updateOrCreate(
-            ['name' => 'warehouse-manager', 'guard_name' => 'web'],
-            []
+        $warehouse = Role::firstOrCreate(
+            ['name' => 'warehouse-manager', 'guard_name' => 'web']
         );
 
-        $shopManager = Role::updateOrCreate(
-            ['name' => 'shop-manager', 'guard_name' => 'web'],
-            []
+        $shopManager = Role::firstOrCreate(
+            ['name' => 'shop-manager', 'guard_name' => 'web']
         );
 
-        $superAdmin->syncPermissions(Permission::all());
+        if ($superAdmin->wasRecentlyCreated) {
+            $superAdmin->syncPermissions(Permission::all());
+        }
 
-        $warehouse->syncPermissions(
-            Permission::whereIn('name', array_merge(
-                $permissions['Shop Management'],
-                $permissions['Fruit Management'],
-                $permissions['Order Management'],
-                $permissions['Inventory Management'],
-                $permissions['Report Management']
-            ))->get()
-        );
+        if ($warehouse->wasRecentlyCreated) {
+            $warehouse->syncPermissions(
+                Permission::whereIn('name', array_merge(
+                    $permissions['Shop Management'],
+                    $permissions['Fruit Management'],
+                    $permissions['Order Management'],
+                    $permissions['Inventory Management'],
+                    $permissions['Report Management']
+                ))->get()
+            );
+        }
 
-        $shopManager->syncPermissions(
-            Permission::whereIn('name', [
-                'order.view.own',
-                'order.create.own',
-                'order.edit.own',
-                'order.submit.own',
-            ])->get()
-        );
+        if ($shopManager->wasRecentlyCreated) {
+            $shopManager->syncPermissions(
+                Permission::whereIn('name', [
+                    'order.view.own',
+                    'order.create.own',
+                    'order.edit.own',
+                    'order.submit.own',
+                ])->get()
+            );
+        }
 
         app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
     }

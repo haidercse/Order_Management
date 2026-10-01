@@ -17,6 +17,8 @@ class DatabaseSeeder extends Seeder
             ShopSeeder::class,
             FruitMasterSeeder::class,
             InventorySeeder::class,
+            DailyOrderSeeder::class,
+            SystemSettingSeeder::class,
         ]);
     }
 }
