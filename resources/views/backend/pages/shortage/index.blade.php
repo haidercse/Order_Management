@@ -7,9 +7,17 @@
     <div class="d-flex flex-wrap align-items-center justify-content-between mb-4">
         <div>
             <h3 class="mb-1 text-primary font-weight-bold">Shortage / Purchase Planning</h3>
-            <p class="text-muted mb-0">Outstanding submitted orders compared with available warehouse stock.</p>
+            <p class="text-muted mb-0">Outstanding submitted orders compared with available warehouse stock for {{ $date }}.</p>
         </div>
-        <a href="{{ route('admin.inventory.index') }}" class="btn btn-outline-primary mt-2 mt-md-0"><i class="fa fa-cubes"></i> Open inventory</a>
+        <div class="d-flex flex-wrap align-items-center mt-2 mt-md-0">
+            <form method="GET" action="{{ route('admin.shortage.index') }}" class="form-inline mr-2">
+                @if ($showAll)<input type="hidden" name="show_all" value="1">@endif
+                <label for="shortageDate" class="mr-2">Delivery date</label>
+                <input id="shortageDate" name="date" type="date" class="form-control mr-2" value="{{ $date }}">
+                <button class="btn btn-primary" type="submit">View</button>
+            </form>
+            <a href="{{ route('admin.inventory.index') }}" class="btn btn-outline-primary"><i class="fa fa-cubes"></i> Open inventory</a>
+        </div>
     </div>
     <div class="alert {{ $shortageCount ? 'alert-warning' : 'alert-success' }}">
         <strong>{{ $shortageCount ? $shortageCount . ' fruit item(s) need purchasing.' : 'No shortages detected.' }}</strong>
@@ -18,7 +26,7 @@
     <div class="card shadow-sm mb-3">
         <div class="card-body d-flex flex-wrap justify-content-between align-items-center">
             <span>Items with shortages: <strong>{{ $shortageCount }}</strong></span>
-            <a href="{{ route('admin.shortage.index', ['show_all' => !$showAll]) }}" class="btn btn-sm btn-outline-secondary">
+            <a href="{{ route('admin.shortage.index', ['date' => $date, 'show_all' => !$showAll]) }}" class="btn btn-sm btn-outline-secondary">
                 {{ $showAll ? 'Show shortages only' : 'Show all demanded fruit' }}
             </a>
         </div>

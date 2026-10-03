@@ -7,6 +7,7 @@ use App\Models\Fruit;
 use App\Models\Order;
 use App\Models\SystemSetting;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -45,16 +46,19 @@ class ReportController extends Controller
             fputcsv($output, ['Currency', $data['currency']]);
             fputcsv($output, []);
             fputcsv($output, ['Fruit demand and available stock']);
-            fputcsv($output, ['Fruit', 'Code', 'Demand', 'Unit', 'WH available', 'Shortage / excess', 'Estimated value', 'Currency']);
+            fputcsv($output, ['Fruit', 'Code', 'Demand KG', 'Demand Caja', 'WH available', 'Stock unit', 'Shortage / excess', 'Price / KG', 'Price / Caja', 'Estimated value', 'Currency']);
 
             foreach ($data['items'] as $item) {
                 fputcsv($output, [
                     $this->safeCsvText($item['name']),
                     $this->safeCsvText($item['code']),
-                    number_format($item['demand'], 3, '.', ''),
-                    $this->safeCsvText($item['unit']),
+                    number_format($item['demand_kg'], 3, '.', ''),
+                    number_format($item['demand_boxes'], 3, '.', ''),
                     number_format($item['available'], 3, '.', ''),
+                    $this->safeCsvText($item['unit']),
                     number_format($item['available'] - $item['demand'], 3, '.', ''),
+                    $item['price_per_kg'] === null ? '' : number_format($item['price_per_kg'], 2, '.', ''),
+                    $item['price_per_box'] === null ? '' : number_format($item['price_per_box'], 2, '.', ''),
                     number_format($item['value'], 2, '.', ''),
                     $this->safeCsvText($data['currency']),
                 ]);
@@ -82,19 +86,30 @@ class ReportController extends Controller
 
     private function reportDate(Request $request): string
     {
-        return $request->validate([
+        $date = $request->validate([
             'date' => ['nullable', 'date_format:Y-m-d'],
-        ])['date'] ?? today()->toDateString();
+        ])['date'] ?? null;
+
+        if ($date !== null) {
+            return $date;
+        }
+
+        $days = (int) (SystemSetting::query()->where('key', 'order_day_offset')->value('value') ?: 1);
+        $timezone = SystemSetting::query()->where('key', 'timezone')->value('value') ?: config('app.timezone');
+
+        return CarbonImmutable::today($timezone)->addDays(max(1, $days))->toDateString();
     }
 
     private function reportData(string $date): array
     {
         $demandRows = DB::table('order_items')
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
+            ->join('units', 'units.id', '=', 'order_items.unit_id')
             ->whereDate('orders.order_date', $date)
             ->whereNotNull('orders.submitted_at')
             ->select('order_items.fruit_id')
             ->selectRaw('SUM(COALESCE(order_items.converted_kg, order_items.quantity)) AS demand_kg')
+            ->selectRaw("SUM(CASE WHEN units.code = 'BOX' THEN order_items.quantity ELSE 0 END) AS demand_boxes")
             ->selectRaw('SUM(COALESCE(order_items.line_total, order_items.quantity * order_items.unit_price, 0)) AS value')
             ->groupBy('order_items.fruit_id')
             ->get()
@@ -108,7 +123,15 @@ class ReportController extends Controller
             ->pluck('available_kg', 'fruit_id');
 
         $fruits = Fruit::query()
-            ->with(['defaultUnit', 'boxConfigurations' => fn ($query) => $query->where('is_default', true)])
+            ->with([
+                'defaultUnit',
+                'boxConfigurations' => fn ($query) => $query->where('is_default', true),
+                'prices' => fn ($query) => $query->with('unit')
+                    ->where('is_active', true)
+                    ->whereDate('effective_from', '<=', $date)
+                    ->where(fn ($price) => $price->whereNull('effective_to')->orWhereDate('effective_to', '>=', $date))
+                    ->orderByDesc('effective_from'),
+            ])
             ->whereIn('id', $demandRows->keys())
             ->get()
             ->keyBy('id');
@@ -124,14 +147,25 @@ class ReportController extends Controller
             $divisor = $boxWeight > 0 ? $boxWeight : 1;
             $demandKg = (float) $row->demand_kg;
             $availableKg = max(0, (float) ($stockByFruit[$fruit->id] ?? 0));
+            $kgPrice = $fruit->prices->first(fn ($price) => $price->unit?->code === 'KG' && $price->box_configuration_id === null);
+            $boxPrice = $box
+                ? $fruit->prices->first(fn ($price) =>
+                    $price->unit?->code === 'BOX'
+                    && (int) $price->box_configuration_id === (int) $box->id
+                )
+                : null;
 
             return [
                 'fruit_id' => $fruit->id,
                 'name' => $fruit->display_name ?: $fruit->name,
                 'code' => $fruit->code,
                 'demand' => $demandKg / $divisor,
+                'demand_kg' => $demandKg,
+                'demand_boxes' => (float) $row->demand_boxes,
                 'available' => $availableKg / $divisor,
                 'unit' => $boxWeight > 0 ? 'caja' : ($fruit->defaultUnit->symbol ?? 'kg'),
+                'price_per_kg' => $kgPrice ? (float) $kgPrice->price : null,
+                'price_per_box' => $boxPrice ? (float) $boxPrice->price : null,
                 'value' => (float) $row->value,
             ];
         })->filter()->sortBy('name')->values();

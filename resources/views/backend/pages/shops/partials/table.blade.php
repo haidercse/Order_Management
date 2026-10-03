@@ -1,4 +1,10 @@
 <div class="table-responsive">
+    <style>
+        .shop-actions-heading { min-width: 135px; }
+        .shop-actions { white-space: nowrap; }
+        .shop-action-buttons { display: inline-flex; align-items: center; justify-content: flex-start; gap: 6px; white-space: nowrap; }
+        .shop-action-buttons .btn { display: inline-flex; width: 32px; height: 32px; align-items: center; justify-content: center; padding: 0; }
+    </style>
 
     <table class="table table-bordered table-hover align-middle">
 
@@ -9,10 +15,11 @@
                 <th>Code</th>
                 <th>Shop Name</th>
                 <th>Manager</th>
+                <th>Manager Login Email</th>
                 <th>Phone</th>
                 <th>City</th>
                 <th>Status</th>
-                <th width="150">Action</th>
+                <th class="shop-actions-heading">Action</th>
             </tr>
 
         </thead>
@@ -23,7 +30,7 @@
 
                 <tr>
 
-                    <td>
+                    <td class="shop-actions">
                         {{ $shops->firstItem() + $loop->index }}
                     </td>
 
@@ -37,6 +44,10 @@
 
                     <td>
                         {{ $shop->manager_name ?? '-' }}
+                    </td>
+
+                    <td>
+                        {{ $shop->users->first()?->email ?? 'No login account' }}
                     </td>
 
                     <td>
@@ -67,6 +78,19 @@
 
                     <td>
 
+                        <div class="shop-action-buttons">
+
+                        @if ($shop->users->first())
+                            <button
+                                type="button"
+                                class="btn btn-sm btn-info reset-manager-password"
+                                data-id="{{ $shop->id }}"
+                                title="Issue a temporary password"
+                            >
+                                <i class="fa fa-key"></i>
+                            </button>
+                        @endif
+
                         <button
                             type="button"
                             class="btn btn-sm btn-warning edit-shop"
@@ -83,6 +107,7 @@
                             <i class="fa fa-trash"></i>
                         </button>
 
+                        </div>
                     </td>
 
                 </tr>
@@ -91,7 +116,7 @@
 
                 <tr>
 
-                    <td colspan="8" class="text-center py-4">
+                    <td colspan="9" class="text-center py-4">
 
                         No shops found.
 

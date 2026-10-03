@@ -4,13 +4,18 @@ namespace App\Http\Controllers\admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Shop;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+use Spatie\Permission\Models\Role;
 
 class ShopController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Shop::query();
+        $query = Shop::query()->with(['users' => fn ($users) => $users->role('shop-manager')->orderBy('id')]);
 
         //search filter
         if ($request->filled('search')) {
@@ -66,18 +71,38 @@ class ShopController extends Controller
             'manager_name' => 'nullable|string|max:255',
             'phone' => 'nullable|string|max:50',
             'email' => 'nullable|email|max:255',
+            'manager_login_email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'manager_password' => ['nullable', 'string', 'min:8', 'confirmed'],
             'address' => 'nullable|string',
             'city' => 'nullable|string|max:100',
             'status' => 'required|in:active,inactive',
             'notes' => 'nullable|string',
         ]);
 
-        $shop = Shop::create($validated);
+        $managerPassword = filled($validated['manager_password'] ?? null)
+            ? $validated['manager_password']
+            : '12345678';
+
+        $shop = DB::transaction(function () use ($validated, $managerPassword): Shop {
+            $shop = Shop::create(collect($validated)->except(['manager_login_email', 'manager_password', 'manager_password_confirmation'])->all());
+            $user = User::create([
+                'name' => $shop->manager_name ?: $shop->name . ' Manager',
+                'email' => $validated['manager_login_email'],
+                'password' => $managerPassword,
+                'shop_id' => $shop->id,
+            ]);
+            $user->assignRole(Role::findByName('shop-manager', 'web'));
+
+            return $shop;
+        });
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Shop created successfully!',
-            'data' => $shop
+            'message' => 'Shop and manager login created successfully. Share the credentials securely with the manager.',
+            'credentials' => [
+                'email' => $validated['manager_login_email'],
+                'password' => $managerPassword,
+            ],
         ]);
     }
 
@@ -85,11 +110,14 @@ class ShopController extends Controller
    //edit
     public function edit($id)
     {
-        $shop = Shop::findOrFail($id);
+        $shop = Shop::with(['users' => fn ($users) => $users->role('shop-manager')->orderBy('id')])->findOrFail($id);
 
         return response()->json([
             'status' => 'success',
-            'data' => $shop
+            'data' => [
+                ...$shop->toArray(),
+                'manager_login_email' => $shop->users->first()?->email,
+            ],
         ]);
     }
 
@@ -105,17 +133,85 @@ class ShopController extends Controller
             'manager_name' => 'nullable|string|max:255',
             'phone' => 'nullable|string|max:50',
             'email' => 'nullable|email|max:255',
+            'manager_login_email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($shop->users()->role('shop-manager')->value('id'))],
+            'manager_password' => [
+                'nullable',
+                'string',
+                'min:8',
+                'confirmed',
+            ],
             'address' => 'nullable|string',
             'city' => 'nullable|string|max:100',
             'status' => 'required|in:active,inactive',
             'notes' => 'nullable|string',
         ]);
 
-        $shop->update($validated);
+        $managerPassword = filled($validated['manager_password'] ?? null)
+            ? $validated['manager_password']
+            : '12345678';
+        $hasManager = $shop->users()->role('shop-manager')->exists();
+        $credentialUpdate = !$hasManager || filled($validated['manager_password'] ?? null);
+
+        DB::transaction(function () use ($shop, $validated, $managerPassword): void {
+            $shop->update(collect($validated)->except(['manager_login_email', 'manager_password', 'manager_password_confirmation'])->all());
+            $manager = $shop->users()->role('shop-manager')->lockForUpdate()->first();
+
+            if (!$manager) {
+                $manager = new User([
+                    'name' => $shop->manager_name ?: $shop->name . ' Manager',
+                    'email' => $validated['manager_login_email'],
+                    'password' => $managerPassword,
+                    'shop_id' => $shop->id,
+                ]);
+                $manager->save();
+                $manager->assignRole(Role::findByName('shop-manager', 'web'));
+
+                return;
+            }
+
+            $manager->name = $shop->manager_name ?: $shop->name . ' Manager';
+            $manager->email = $validated['manager_login_email'];
+            if (!empty($validated['manager_password'])) {
+                $manager->password = $validated['manager_password'];
+                $manager->must_change_password = false;
+            }
+            $manager->save();
+        });
+
+        $response = [
+            'status' => 'success',
+            'message' => 'Shop and manager account updated successfully.',
+        ];
+
+        if ($credentialUpdate) {
+            $response['message'] = 'Shop updated. Share the manager login credentials securely.';
+            $response['credentials'] = [
+                'email' => $validated['manager_login_email'],
+                'password' => $managerPassword,
+            ];
+        }
+
+        return response()->json($response);
+    }
+
+    public function resetManagerPassword(int $id)
+    {
+        $shop = Shop::findOrFail($id);
+        $manager = $shop->users()->role('shop-manager')->firstOrFail();
+        $temporaryPassword = Str::random(18);
+
+        $manager->forceFill([
+            'password' => $temporaryPassword,
+            'must_change_password' => true,
+        ])->save();
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Shop updated successfully!'
+            'message' => 'Temporary password generated. Share it securely; the manager must change it at next login.',
+            'credentials' => [
+                'email' => $manager->email,
+                'password' => $temporaryPassword,
+            ],
         ]);
     }
 

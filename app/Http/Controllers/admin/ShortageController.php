@@ -4,6 +4,8 @@ namespace App\Http\Controllers\admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Fruit;
+use App\Models\SystemSetting;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -11,9 +13,14 @@ class ShortageController extends Controller
 {
     public function index(Request $request)
     {
+        $date = $request->validate([
+            'date' => ['nullable', 'date_format:Y-m-d'],
+        ])['date'] ?? $this->defaultOrderDate();
+
         $demand = DB::table('order_items')
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
             ->whereIn('orders.status', ['submitted', 'prepared', 'ready'])
+            ->whereDate('orders.order_date', $date)
             ->select('order_items.fruit_id')
             ->selectRaw('SUM(COALESCE(order_items.converted_kg, order_items.quantity)) AS demand_kg')
             ->groupBy('order_items.fruit_id')
@@ -62,6 +69,15 @@ class ShortageController extends Controller
             'items' => $items,
             'shortageCount' => $items->where('shortage', '>', 0)->count(),
             'showAll' => $request->boolean('show_all'),
+            'date' => $date,
         ]);
+    }
+
+    private function defaultOrderDate(): string
+    {
+        $days = (int) (SystemSetting::query()->where('key', 'order_day_offset')->value('value') ?: 1);
+        $timezone = SystemSetting::query()->where('key', 'timezone')->value('value') ?: config('app.timezone');
+
+        return CarbonImmutable::today($timezone)->addDays(max(1, $days))->toDateString();
     }
 }

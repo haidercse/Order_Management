@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\InventoryStock;
 use App\Models\InventoryTransaction;
 use App\Models\Order;
+use App\Models\SystemSetting;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -16,20 +18,27 @@ class OrderController extends Controller
     {
         $query = Order::query()
             ->with(['shop', 'items.fruit', 'items.unit', 'items.boxConfiguration'])
+            ->whereNotNull('submitted_at')
             ->withCount('items');
 
-        if ($request->filled('date')) {
-            $query->whereDate('order_date', $request->date);
+        $filters = $request->validate([
+            'date' => ['nullable', 'date_format:Y-m-d'],
+            'status' => ['nullable', 'in:submitted,prepared,ready,sent'],
+            'search' => ['nullable', 'string', 'max:150'],
+        ]);
+
+        if (!empty($filters['date'])) {
+            $query->whereDate('order_date', $filters['date']);
         } else {
-            $query->whereDate('order_date', today());
+            $query->whereDate('order_date', $this->defaultOrderDate());
         }
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->string('status')->toString());
+        if (!empty($filters['status'])) {
+            $query->where('status', $filters['status']);
         }
 
-        if ($request->filled('search')) {
-            $search = $request->string('search')->toString();
+        if (!empty($filters['search'])) {
+            $search = $filters['search'];
             $query->whereHas('shop', function ($shop) use ($search) {
                 $shop->where('name', 'like', "%{$search}%")
                     ->orWhere('code', 'like', "%{$search}%");
@@ -37,7 +46,7 @@ class OrderController extends Controller
         }
 
         $orders = $query->orderByDesc('submitted_at')->orderByDesc('id')->paginate(20)->withQueryString();
-        $filters = $request->only(['date', 'status', 'search']);
+        $filters = array_filter($filters, fn ($value) => $value !== null);
 
         if ($request->ajax()) {
             return response()->json([
@@ -46,6 +55,14 @@ class OrderController extends Controller
         }
 
         return view('backend.pages.orders.index', compact('orders', 'filters'));
+    }
+
+    private function defaultOrderDate(): string
+    {
+        $days = (int) (SystemSetting::query()->where('key', 'order_day_offset')->value('value') ?: 1);
+        $timezone = SystemSetting::query()->where('key', 'timezone')->value('value') ?: config('app.timezone');
+
+        return CarbonImmutable::today($timezone)->addDays(max(1, $days))->toDateString();
     }
 
     public function show(int $id)

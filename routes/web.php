@@ -13,6 +13,8 @@ use App\Http\Controllers\admin\ReportController;
 use App\Http\Controllers\admin\RoleController;
 use App\Http\Controllers\admin\ShopController;
 use App\Http\Controllers\admin\ShortageController;
+use App\Http\Controllers\shop\ShopOrderController;
+use App\Http\Controllers\PasswordController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\admin\AdminController;
 use App\Http\Controllers\admin\AuthController;
@@ -29,13 +31,29 @@ use App\Http\Controllers\admin\AuthController;
 */
 
 Route::get('/', function () {
+    if (auth()->check() && auth()->user()->hasRole('shop-manager')) {
+        return redirect()->route('shop.orders.index');
+    }
+
     return redirect()->route('admin.dashboard');
 });
 // Login and Authentication Routes
 Route::get('login', [AuthController::class, 'login'])->name('login');
 Route::post('login', [AuthController::class, 'loginAll'])->name('login.post');
 
-Route::prefix('admin')->name('admin.')->middleware(['auth'])->group(function () {
+Route::middleware('auth')->group(function () {
+    Route::get('/password/change', [PasswordController::class, 'edit'])->name('password.change');
+    Route::post('/password/change', [PasswordController::class, 'update'])->name('password.change.update');
+});
+
+Route::middleware(['auth', 'password.change.required', 'role:shop-manager'])->prefix('shop')->name('shop.')->group(function () {
+    Route::get('/orders', [ShopOrderController::class, 'index'])->name('orders.index');
+    Route::post('/orders/draft', [ShopOrderController::class, 'saveDraft'])->name('orders.draft');
+    Route::post('/orders/submit', [ShopOrderController::class, 'submit'])->name('orders.submit');
+    Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+});
+
+Route::prefix('admin')->name('admin.')->middleware(['auth', 'password.change.required', 'role:super-admin|warehouse-manager'])->group(function () {
     Route::get('/dashboard', [AdminController::class, 'index'])->name('dashboard');
     Route::get('/warehouse', [AdminController::class, 'index'])->name('warehouse.dashboard');
     // Menu Management Routes
@@ -92,6 +110,8 @@ Route::prefix('admin')->name('admin.')->middleware(['auth'])->group(function () 
             Route::get('/edit/{id}', [ShopController::class, 'edit'])->name('edit');
 
             Route::post('/update/{id}', [ShopController::class, 'update'])->name('update');
+
+            Route::post('/{id}/reset-manager-password', [ShopController::class, 'resetManagerPassword'])->name('reset-manager-password');
 
             Route::delete('/delete/{id}', [ShopController::class, 'destroy'])->name('destroy');
         });

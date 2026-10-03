@@ -22,7 +22,7 @@ class MenuSeeder extends Seeder
                 ]],
             ],
             'Shop Management' => [
-                ['title'=>'Shops','icon'=>'ti-building-store','permission'=>'shop.view','children'=>[
+                ['title'=>'Shops','icon'=>'fa fa-shopping-cart','permission'=>'shop.view','children'=>[
                     ['title'=>'Shop List','route'=>'admin.shops.index','permission'=>'shop.view'],
                 ]],
             ],
@@ -35,7 +35,7 @@ class MenuSeeder extends Seeder
                 ]],
             ],
             'Reports' => [
-                ['title'=>'Reports','icon'=>'ti-file-text','permission'=>'report.view','children'=>[
+                ['title'=>'Reports','icon'=>'fa fa-file-text-o','permission'=>'report.view','children'=>[
                     ['title'=>'Daily Warehouse Report','route'=>'admin.reports.daily','permission'=>'report.view'],
                     ['title'=>'PDF Reports','route'=>'admin.reports.pdf','permission'=>'report.pdf'],
                     ['title'=>'Excel Reports','route'=>'admin.reports.excel','permission'=>'report.excel'],

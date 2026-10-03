@@ -36,7 +36,7 @@
 
     <h2>Fruit demand and current stock availability</h2>
     <table class="data">
-        <thead><tr><th>Fruit item</th><th>Demand</th><th>Available</th><th>Shortage / excess</th><th>Order value</th></tr></thead>
+        <thead><tr><th>Fruit item</th><th>Demand KG</th><th>Demand Caja</th><th>Available</th><th>Shortage / excess</th><th>Price / KG</th><th>Price / Caja</th><th>Order value</th></tr></thead>
         <tbody>
             @forelse ($items as $item)
                 @php
@@ -44,17 +44,20 @@
                 @endphp
                 <tr>
                     <td>{{ $item['name'] }} ({{ $item['code'] }})</td>
-                    <td>{{ number_format($item['demand'], 3) }} {{ $item['unit'] }}</td>
+                    <td>{{ number_format($item['demand_kg'], 3) }} kg</td>
+                    <td>{{ number_format($item['demand_boxes'], 3) }} caja</td>
                     <td>{{ number_format($item['available'], 3) }} {{ $item['unit'] }}</td>
                     <td class="{{ $difference < 0 ? 'short' : 'sufficient' }}">{{ $difference > 0 ? '+' : '' }}{{ number_format($difference, 3) }} {{ $item['unit'] }}</td>
+                    <td>{{ $item['price_per_kg'] === null ? '—' : $currency . ' ' . number_format($item['price_per_kg'], 2) }}</td>
+                    <td>{{ $item['price_per_box'] === null ? '—' : $currency . ' ' . number_format($item['price_per_box'], 2) }}</td>
                     <td>{{ $currency }} {{ number_format($item['value'], 2) }}</td>
                 </tr>
             @empty
-                <tr><td colspan="5">No submitted order demand for this date.</td></tr>
+                <tr><td colspan="8">No submitted order demand for this date.</td></tr>
             @endforelse
         </tbody>
     </table>
-    <div class="footer">Demand is converted to the fruit's default caja equivalent where available. Available stock excludes reserved quantities.</div>
+    <div class="footer">Demand is shown in kilograms and ordered Caja. Stock and shortage use the default caja equivalent where available. Prices are effective for the selected order date; order value uses the submitted price snapshots.</div>
 
     <h2>Submitted shop orders</h2>
     <table class="data">

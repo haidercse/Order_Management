@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FreshLink – Fruit Orders</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.2/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+/* ---------- Design tokens (light + dark) ---------- */
+:root{--bg:#f4faf1;--card:#fff;--ink:#17301f;--mute:#5f7565;--line:#dbe8d5;
+--g:#2f9e4f;--gd:#1e7a38;--gl:#e2f4e5;--o:#ffb56b;--ol:#fff0de;--od:#a4560c;--bad:#c0392b;--wh:#24405a;--whl:#e6eef6;--b:#2f6fed;--bl:#e7eefd;--bd:#1d4fbf;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#101a13;--card:#182419;--ink:#e6f2e8;--mute:#93a99a;--line:#2a3d2e;--gl:#1d3524;--ol:#3a2a17;--od:#ffc48a;--wh:#a9c7e6;--whl:#1a2a3a;--bl:#182338;--bd:#8fb0f7}}
+:root[data-theme="dark"]{--bg:#101a13;--card:#182419;--ink:#e6f2e8;--mute:#93a99a;--line:#2a3d2e;--gl:#1d3524;--ol:#3a2a17;--od:#ffc48a;--wh:#a9c7e6;--whl:#1a2a3a;--bl:#182338;--bd:#8fb0f7}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 "Trebuchet MS","Segoe UI",system-ui,sans-serif}
+button,input,select{font:inherit;color:inherit}
+.wrap{max-width:980px;margin:0 auto;padding:16px}
+
+/* ---------- Header: green for shops, navy for warehouse ---------- */
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--g);color:#fff;border-bottom:4px solid var(--o)}
+header.wh{background:var(--wh)}
+header .wrap{display:flex;align-items:center;gap:12px;padding:10px 16px;flex-wrap:wrap}
+.brand{font-weight:800;font-size:1.15rem;flex:1;min-width:150px}
+.brand small{display:block;font-weight:500;opacity:.85;font-size:.78rem}
+.date{font-size:.85rem;opacity:.95}
+
+/* ---------- Components ---------- */
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px}
+h2{margin:0 0 12px;font-size:1.15rem}
+.btn{border:0;border-radius:10px;padding:11px 16px;font-weight:700;cursor:pointer;background:var(--g);color:#fff}
+.btn:hover{background:var(--gd)}.btn.o{background:var(--o);color:#3b2400}.btn.o:hover{filter:brightness(.95)}
+.btn.ghost{background:transparent;border:1.5px solid currentColor;color:inherit}
+.btn.sm{padding:6px 10px;font-size:.85rem}.btn.bad{background:var(--bad)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn:focus-visible,input:focus-visible,select:focus-visible,.row:focus-visible{outline:3px solid var(--o);outline-offset:2px}
+input,select{width:100%;padding:11px;border:1.5px solid var(--line);border-radius:10px;background:var(--card)}
+label{display:block;font-size:.85rem;color:var(--mute);margin-bottom:4px}
+.grid{display:grid;gap:10px;grid-template-columns:1fr auto;align-items:end}
+@media(max-width:620px){.grid{grid-template-columns:1fr}.grid .full{grid-column:1/-1}}
+.pill{display:inline-block;padding:3px 10px;border-radius:99px;font-size:.78rem;font-weight:700}
+.Pending{background:var(--line);color:var(--mute)}.Submitted{background:var(--ol);color:var(--od)}
+.Prepared{background:var(--gl);color:var(--gd)}.Delivered{background:var(--g);color:#fff}
+.items{list-style:none;margin:0;padding:0}
+.items li{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line)}
+.items .n{flex:1;font-weight:600}.items .q{color:var(--mute)}
+.empty{text-align:center;color:var(--mute);padding:26px 10px}.empty b{display:block;font-size:2rem}
+.banner{background:var(--gl);border-left:5px solid var(--g);padding:12px 14px;border-radius:10px;margin-bottom:16px}
+.tot{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.tot div{background:var(--ol);border-radius:12px;padding:12px}
+.tot span{display:block;font-size:.85rem;color:var(--od)}.tot strong{font-size:1.5rem}.tot em{font-style:normal;font-size:.8rem;color:var(--mute)}
+.stats{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.row{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;cursor:pointer;border-bottom:1px solid var(--line)}
+.row:hover{background:var(--gl)}.row .n{flex:1;font-weight:600}
+.login{max-width:400px;margin:8vh auto 0}
+.tabs{display:flex;gap:8px;margin-bottom:14px}.tabs .btn{flex:1}
+.err{color:var(--bad);font-size:.9rem;min-height:1.3em}
+.hint{font-size:.8rem;color:var(--mute)}
+.top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+header.ow{background:#a8500e}
+.banner.ok{background:var(--gl);border-left-color:var(--g);color:var(--gd)}
+/* Shortage alert: its own tabbed card, set apart from the plain banners */
+.alertcard{margin-bottom:16px}
+.alertcard .tab{display:inline-block;background:var(--b);color:#fff;font-weight:800;font-size:.82rem;
+  padding:6px 16px;border-radius:10px 10px 0 0;letter-spacing:.02em}
+.alertcard .body{background:var(--bl);border:2px solid var(--b);border-top-width:6px;border-radius:0 12px 12px 12px;padding:14px 16px;color:var(--bd)}
+.pill.buyp{background:var(--b);color:#fff;margin:4px 6px 0 0;display:inline-block}
+button.pill.buyp{border:0;cursor:pointer;font:inherit}
+button.pill.buyp:hover{filter:brightness(.9)}
+tr.hl{background:var(--bl);outline:2px solid var(--b)}
+.banner.alertline{background:var(--bl);border-left-color:var(--b);color:var(--bd)}
+.tabs{overflow-x:auto}.tabs .btn{white-space:nowrap}
+.ptable{overflow-x:auto;max-width:100%;border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:.88rem}
+th,td{padding:7px 9px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:var(--card);font-weight:700}
+thead th{background:var(--gl)}thead th:first-child{background:var(--gl)}
+tfoot td{background:var(--ol);font-weight:800}tfoot td:first-child{background:var(--ol)}
+td.z{color:var(--mute);opacity:.5}td.link{cursor:pointer;color:var(--gd);text-decoration:underline}
+.buy{color:var(--od);font-weight:800}.ok{color:var(--gd);font-weight:800}
+details{border-bottom:1px solid var(--line);padding:8px 0}summary{cursor:pointer;font-weight:700}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* =========================================================
+   FreshLink – fruit ordering between shops and one warehouse
+   All data lives in localStorage. Demo passwords are hardcoded.
+   ========================================================= */
+
+// ---- Configuration (edit these to change fruits / shops / passwords) ----
+const FRUITS = ["Apple","Banana","Orange","Mango","Grapes","Pineapple","Watermelon","Papaya","Guava","Pomegranate","Strawberry","Kiwi","Lemon","Pear"];
+const UNITS = ["bucket"];  // warehouse now tracks stock and pricing in Bucket/Caja only, same as shop orders
+const BIG_ORDER_QTY = 30;  // orders above this many Bucket/Caja must be confirmed with a second tap, to catch typos
+const MAX_ORDERS_PER_DAY = 3;  // a shop may submit up to this many separate orders in one day
+const SHOPS = Array.from({length:85},(_,i)=>"Shop-"+String(i+1).padStart(2,"0"));
+const SHOP_PASS = "shop123", WH_USER = "warehouse", WH_PASS = "wh123";
+const OWNER_USER = "owner", OWNER_PASS = "owner123";   // owner/admin demo login
+const DATA_KEY = "freshlink.data.v1", SESSION_KEY = "freshlink.session.v1", HIST_KEY = "freshlink.history.v1";
+
+// ---- Storage helpers (wrapped: storage can be unavailable) ----
+const todayStr = () => new Date().toLocaleDateString("en-CA");
+function loadData(){
+  let d = null; try{ d = JSON.parse(localStorage.getItem(DATA_KEY)); }catch(e){}
+  const flat = o => { const r = {}; FRUITS.forEach(f => { const v = (o||{})[f]; r[f] = (v && typeof v === "object") ? (Number(v.bucket)||0) : (Number(v)||0); }); return r; };
+  const migrate = orders => { const r = {}; Object.keys(orders||{}).forEach(s => { const o = orders[s];
+    if(o && o.batches){ r[s] = o; return; }                       // already in the new shape
+    if(!o || o.status === "Pending"){ r[s] = {batches:[], draft:{items:(o&&o.items)||[]}}; return; }
+    r[s] = {batches:[{items:o.items||[], status:o.status}], draft:{items:[]}};                // old single order becomes order #1
+  }); return r; };
+  if(d && d.date === todayStr()){ d.stock = flat(d.stock); d.price = flat(d.price); d.orders = migrate(d.orders); return d; }
+  if(d) archive(d);                                   // new day: save yesterday's summary first
+  return {date: todayStr(), orders: {}, stock: flat(d && d.stock), stockDate: d && d.stockDate, price: flat(d && d.price)};
+}
+function loadHist(){ try{ return JSON.parse(localStorage.getItem(HIST_KEY)) || {}; }catch(e){ return {}; } }
+// Save a day's "ordered vs stock" summary so the owner can review it later
+function archive(d){
+  const rows = calcRows(d); if(!rows.some(r => r.hasOrder)) return;
+  const h = loadHist();
+  h[d.date] = {date: d.date, shops: Object.values(d.orders).filter(o => o.batches && o.batches.length).length, rows};
+  try{ localStorage.setItem(HIST_KEY, JSON.stringify(h)); }catch(e){}
+}
+function r2(n){ return Math.round(n*100)/100; }
+const CUR = "$";                     // currency symbol shown before prices; edit to change it
+const money = n => CUR + r2(n).toFixed(2);
+function saveData(){ try{ localStorage.setItem(DATA_KEY, JSON.stringify(db)); }catch(e){} }
+function loadSession(){ try{ return JSON.parse(localStorage.getItem(SESSION_KEY)); }catch(e){ return null; } }
+function saveSession(){ try{ session ? localStorage.setItem(SESSION_KEY, JSON.stringify(session)) : localStorage.removeItem(SESSION_KEY); }catch(e){} }
+
+// ---- State ----
+// orders[shopId] = { batches:[{items:[{fruit,qty,unit}], status:"Submitted|Prepared|Delivered"}], draft:{items:[...]} }
+// A shop can submit up to MAX_ORDERS_PER_DAY separate batches; each is then read-only and tracked by the warehouse on its own.
+let db = loadData(), session = loadSession();
+let bigKey = "", loginRole = "shop", whTab = "overview", stockFocus = null, note = "", loginErr = "", editIdx = null, selShop = null, selBatch = null, filter = "", resetArmed = false;
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const shopData = id => db.orders[id] || (db.orders[id] = {batches:[], draft:{items:[]}});
+// Compact status for a shop across all its batches today, for the Shops list and pivot
+function shopStatus(s){
+  const o = db.orders[s];
+  if(!o || !o.batches.length) return {label:"Pending", cls:"Pending"};
+  const sts = o.batches.map(b => b.status), same = sts.every(x => x===sts[0]);
+  return {label:(same?sts[0]:"Mixed")+(o.batches.length>1?" ("+o.batches.length+")":""), cls: same?sts[0]:"Submitted"};
+}
+const fmtDate = () => new Date().toLocaleDateString(undefined,{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+const opts = (arr, sel) => arr.map(a => `<option ${a===sel?"selected":""}>${esc(a)}</option>`).join("");
+const unitLabel = (q,u) => u==="bucket" ? "Bucket/Caja" : "";   // shops order in Bucket/Caja only
+const qtyText = it => it.qty+" "+unitLabel(it.qty,it.unit);
+
+// ---- Layout ----
+function header(cls, title, sub){
+  return `<header class="${cls}"><div class="wrap">
+    <div class="brand">🍎 ${title}<small>${sub}</small></div>
+    <div class="date">${fmtDate()}</div>
+    <button class="btn o sm" data-act="logout">Logout</button></div></header>`;
+}
+
+// ---- Views ----
+function viewLogin(){
+  const R = {shop:["Shop ID","Shop-01 … Shop-85"], wh:["Username","warehouse"], owner:["Username","owner"]}[loginRole];
+  const tab = (k,l) => `<button class="btn ${loginRole===k?"":"ghost"}" data-act="role" data-v="${k}">${l}</button>`;
+  return `<div class="wrap"><div class="card login">
+    <h2>🍎 FreshLink fruit orders</h2>
+    <div class="tabs">${tab("shop","Shop")}${tab("wh","Warehouse")}${tab("owner","Owner")}</div>
+    <label for="u">${R[0]}</label><input id="u" autocomplete="off" placeholder="${R[1]}"><br><br>
+    <label for="p">Password</label><input id="p" type="password" placeholder="Password"><div class="err">${esc(loginErr)}</div>
+    <button class="btn" style="width:100%" data-act="login">Log in</button>
+    <p class="hint">Demo logins:<br>Shop: any Shop ID + <b>shop123</b><br>Warehouse: <b>warehouse</b> / <b>wh123</b><br>Owner: <b>owner</b> / <b>owner123</b></p>
+  </div></div>`;
+}
+
+function viewShop(){
+  const id = session.id, o = shopData(id), draft = o.draft, remaining = MAX_ORDERS_PER_DAY - o.batches.length;
+  const cur = editIdx !== null ? draft.items[editIdx] : {fruit:FRUITS[0], qty:"", unit:"bucket"};
+  let h = header("", id, "Shop orders for tomorrow");
+  h += `<div class="wrap">
+    <div class="banner"><b>Orders today: ${o.batches.length} of ${MAX_ORDERS_PER_DAY} used.</b> ${remaining>0 ? "You can place "+remaining+" more." : "You've reached today's limit."}</div>`;
+  if(remaining <= 0){
+    h += `<div class="card"><div class="empty"><b>✅</b>You've placed ${MAX_ORDERS_PER_DAY} orders today — the daily limit. New orders open again tomorrow.</div></div>`;
+  } else {
+    h += `<div class="card"><h2>${editIdx!==null?"Edit item":"Add a fruit"}</h2><div class="grid">
+      <div class="full"><label for="f">Fruit</label><select id="f">${opts(FRUITS,cur.fruit)}</select></div>
+      <div><label for="q">Quantity (Bucket/Caja)</label><input id="q" type="number" min="0.5" step="0.5" inputmode="decimal" value="${cur.qty}"></div>
+      <input type="hidden" id="un" value="bucket">
+      <button class="btn" data-act="save-item">${editIdx!==null?"Update":"Add"}</button></div>
+      <div class="err" id="ierr"></div></div>`;
+    h += `<div class="card"><h2>This order (${draft.items.length} item${draft.items.length===1?"":"s"})</h2>`;
+    if(!draft.items.length) h += `<div class="empty"><b>🧺</b>You haven't added any fruit yet.</div>`;
+    else h += `<ul class="items">${draft.items.map((it,i)=>`<li><span class="n">${esc(it.fruit)}</span>
+        <span class="q">${qtyText(it)}</span>
+        <button class="btn ghost sm" data-act="edit" data-i="${i}">Edit</button>
+        <button class="btn bad sm" data-act="del" data-i="${i}">✕</button></li>`).join("")}</ul>`;
+    h += `<br><button class="btn o" style="width:100%" data-act="submit" ${draft.items.length?"":"disabled"}>Submit this order</button>
+      ${draft.items.length?"":`<p class="hint">Add at least one fruit to submit.</p>`}</div>`;
+  }
+  if(o.batches.length){
+    h += `<div class="card"><h2>Today's submitted orders</h2><ul class="items">${o.batches.map((b,i) => `<li><span class="n">Order #${i+1} <span class="pill ${b.status}">${b.status}</span></span>
+        <span class="q">${b.items.length} item${b.items.length===1?"":"s"}</span></li>`).join("")}</ul>
+      <p class="hint">Submitted orders are locked and tracked by the warehouse.</p></div>`;
+  }
+  return h + `</div>`;
+}
+
+// ---- Calculations ----
+const submittedShops = () => SHOPS.filter(s => db.orders[s] && db.orders[s].batches.length);
+// count("Pending") = shops with no batches yet; otherwise total batches across all shops with that status
+const count = k => k==="Pending" ? SHOPS.filter(s => !db.orders[s] || !db.orders[s].batches.length).length
+  : SHOPS.reduce((n,s) => n + ((db.orders[s]?db.orders[s].batches:[]).filter(b => b.status===k).length), 0);
+
+// One row per fruit, quantities in Bucket/Caja, summed across every shop's batches, for today or an archived day
+const bkt = n => n ? r2(n)+" bkt" : "·";
+function calcRows(d){
+  const m = {};
+  const row = f => m[f] = m[f] || {fruit:f, ordered:0, stock:0};
+  Object.values(d.orders).forEach(o => (o.batches||[]).forEach(b => b.items.forEach(it => { row(it.fruit).ordered += Number(it.qty); })));
+  FRUITS.forEach(f => { const s = Number((d.stock||{})[f]) || 0; if(s) row(f).stock += s; });
+  return Object.values(m).sort((a,b) => FRUITS.indexOf(a.fruit)-FRUITS.indexOf(b.fruit)).map(x => {
+    const buy = r2(Math.max(0, x.ordered-x.stock)), surplus = r2(Math.max(0, x.stock-x.ordered));
+    const price = Number((d.price||{})[x.fruit]) || 0, value = r2(x.ordered*price);
+    return {fruit:x.fruit, ordered:r2(x.ordered), stock:r2(x.stock), buy, surplus, price, value, hasOrder: x.ordered>0, short: buy>0};
+  });
+}
+
+// ---- Shared tables ----
+function stockTable(rows){
+  if(!rows.length) return `<div class="empty"><b>📊</b>No orders or stock recorded.</div>`;
+  return `<div class="ptable"><table><thead><tr><th>Fruit</th><th>Ordered</th><th>In stock</th><th>To buy</th><th>Surplus</th></tr></thead><tbody>${rows.map(r =>
+    `<tr><td>${esc(r.fruit)}</td><td>${bkt(r.ordered)}</td><td>${bkt(r.stock)}</td>
+      <td class="${r.short?"buy":"ok"}">${r.short?bkt(r.buy):"✓ covered"}</td><td>${r.surplus?bkt(r.surplus):"–"}</td></tr>`).join("")}</tbody></table></div>`;
+}
+// Same as stockTable, plus a per-fruit price and order value (used on the Overview tab and in exports)
+function priceTable(rows){
+  if(!rows.length) return `<div class="empty"><b>📊</b>No orders or stock recorded.</div>`;
+  const tOrdered = r2(rows.reduce((s,r)=>s+r.ordered,0)), tValue = r2(rows.reduce((s,r) => s+r.value,0));
+  return `<div class="ptable"><table><thead><tr><th>Fruit</th><th>Ordered</th><th>Price</th><th>Value</th></tr></thead><tbody>${rows.map(r =>
+    `<tr><td>${esc(r.fruit)}</td><td>${bkt(r.ordered)}</td>
+      <td>${r.price?money(r.price)+"/bkt":"–"}</td>
+      <td>${r.value?money(r.value):"–"}</td></tr>`).join("")}</tbody>
+    <tfoot><tr><td>TOTAL</td><td>${bkt(tOrdered)}</td><td></td><td>${money(tValue)}</td></tr></tfoot></table></div>`;
+}
+
+// Pivot: shops (rows) x fruits (columns), with a totals row
+function pivot(link){
+  const shops = submittedShops();
+  if(!shops.length) return `<div class="empty"><b>📋</b>No submitted orders yet. This table fills in as shops submit.</div>`;
+  const tot = {};
+  const body = shops.map(s => {
+    const q = {};
+    db.orders[s].batches.forEach(b => b.items.forEach(it => { q[it.fruit] = (q[it.fruit]||0) + Number(it.qty); tot[it.fruit] = (tot[it.fruit]||0) + Number(it.qty); }));
+    const st = shopStatus(s);
+    return `<tr><td ${link?`class="link" data-act="open" data-s="${s}"`:""}>${s}</td>${FRUITS.map(f => { const c = q[f]||0; return `<td class="${c?"":"z"}">${bkt(c)}</td>`; }).join("")}<td><span class="pill ${st.cls}">${st.label}</span></td></tr>`;
+  }).join("");
+  return `<div class="ptable"><table><thead><tr><th>Shop</th>${FRUITS.map(f => `<th>${esc(f)}</th>`).join("")}<th>Status</th></tr></thead><tbody>${body}</tbody>
+    <tfoot><tr><td>TOTAL</td>${FRUITS.map(f => `<td>${bkt(tot[f]||0)}</td>`).join("")}<td></td></tr></tfoot></table></div>`;
+}
+const statPills = () => `<div class="stats"><span class="pill Pending">Shops pending ${count("Pending")}</span>
+  <span class="pill Submitted">Orders submitted ${count("Submitted")}</span>
+  <span class="pill Prepared">Orders prepared ${count("Prepared")}</span>
+  <span class="pill Delivered">Orders delivered ${count("Delivered")}</span></div>`;
+// Past days' orders vs stock, shared by the warehouse History tab and the owner dashboard
+function histBlock(){
+  const hist = Object.values(loadHist()).sort((a,b) => b.date.localeCompare(a.date));
+  return hist.length
+    ? hist.map(x => `<details><summary>${x.date}: ${x.shops} shops, ${x.rows.filter(r => r.short).length} items short</summary><br>${stockTable(x.rows)}</details>`).join("")
+    : `<div class="empty"><b>🗓️</b>No past days yet. A day is saved here when the warehouse resets or the date changes.</div>`;
+}
+// ---- Warehouse dashboard (tabs: Overview / All orders / Shops / Stock) ----
+function viewWH(){
+  let h = header("wh", "Warehouse", "All shop orders") + `<div class="wrap">`;
+  if(selShop) return h + viewShopDetail() + `</div>`;
+  const allRows = calcRows(db);
+  h += `<div class="tabs">${[["overview","Overview"],["pivot","All orders"],["shops","Shops"],["stock","Warehouse stock"],["price","Pricing"],["history","History"]].map(([k,l]) =>
+    `<button class="btn ${whTab===k?"":"ghost"}" data-act="tab" data-v="${k}">${l}</button>`).join("")}</div>`;
+  if(whTab === "overview"){
+    const rows = allRows.filter(r => r.hasOrder), total = r2(rows.reduce((s,r) => s+r.value,0));
+    h += `<div class="card"><h2>Today at a glance</h2>${statPills()}<h2>Inventory vs order</h2>` + (rows.length
+      ? priceTable(rows) + `<p class="hint">Submitted orders only. Set prices in the Pricing tab and stock in the Warehouse stock tab.</p>
+        <div class="tot"><div><span>Total order value</span><strong>${money(total)}</strong></div></div><br>
+        ${note ? `<div class="banner">${note}</div>` : ""}
+        <div class="top"><button class="btn" data-act="export-xlsx">⬇ Download Excel (.xlsx)</button><button class="btn ghost" data-act="export-pdf">⬇ Download PDF</button></div>`
+      : `<div class="empty"><b>📦</b>No orders yet. Totals appear when shops submit.</div>`) + `</div>`;
+  } else if(whTab === "pivot"){
+    h += `<div class="card"><h2>All orders: shops × fruits</h2>${pivot(true)}</div>`;
+  } else if(whTab === "shops"){
+    h += `<div class="card"><div class="top"><h2>Shops</h2>
+      <button class="btn ${resetArmed?"bad":"ghost"} sm" data-act="reset">${resetArmed?"Tap again to confirm reset":"Reset all orders for new day"}</button></div>
+      ${statPills()}<input id="flt" placeholder="Search shop, e.g. 12" value="${esc(filter)}"><br><br><div id="list">${shopRows()}</div>
+      <p class="hint">Reset saves today's summary to the owner's daily history.</p></div>`;
+  } else if(whTab === "stock"){
+    h += `<div class="card"><h2>Warehouse stock (existing)</h2>
+      <p class="hint">Enter what is on hand now, in Bucket/Caja.${db.stockDate ? " Last saved "+db.stockDate+"." : ""} The owner compares it with today's orders.</p>
+      ${note ? `<div class="banner">${note}</div>` : ""}
+      <div class="ptable"><table><thead><tr><th>Fruit</th><th>Bucket/Caja</th></tr></thead><tbody>${FRUITS.map(f =>
+        `<tr id="stockrow-${f}" class="${stockFocus===f?"hl":""}"><td>${esc(f)}</td><td><input id="s_${f}" type="number" min="0" step="0.5" inputmode="decimal" value="${db.stock[f] || ""}" style="width:90px"></td></tr>`).join("")}</tbody></table></div><br>
+      <button class="btn" data-act="save-stock">Save stock</button></div>`;
+  } else if(whTab === "price"){
+    h += `<div class="card"><h2>Fruit prices</h2>
+      <p class="hint">Price per Bucket/Caja, used to total up each order's value.${db.priceDate ? " Last saved "+db.priceDate+"." : ""}</p>
+      ${note ? `<div class="banner">${note}</div>` : ""}
+      <div class="ptable"><table><thead><tr><th>Fruit</th><th>${CUR} per Bucket/Caja</th></tr></thead><tbody>${FRUITS.map(f =>
+        `<tr><td>${esc(f)}</td><td><input id="p_${f}" type="number" min="0" step="0.01" inputmode="decimal" value="${db.price[f] || ""}" style="width:90px"></td></tr>`).join("")}</tbody></table></div><br>
+      <button class="btn" data-act="save-price">Save prices</button></div>`;
+  } else {
+    h += `<div class="card"><h2>Past days</h2><p class="hint">Each day's orders vs stock, saved when the day resets or rolls over.</p>${histBlock()}</div>`;
+  }
+  return h + `</div>`;
+}
+
+// ---- Owner dashboard: orders vs warehouse stock, today + daily history ----
+function viewOwner(){
+  const rows = calcRows(db);
+  return header("ow", "Owner dashboard", "Orders vs warehouse stock") + `<div class="wrap">
+    <div class="card"><h2>Today: orders vs warehouse stock</h2>${statPills()}
+      <div class="tot"><div><span>Shops submitted</span><strong>${SHOPS.length-count("Pending")} / ${SHOPS.length}</strong></div>
+      <div><span>Fruits short</span><strong>${rows.filter(r => r.short).length}</strong></div>
+      <div><span>Fruits covered</span><strong>${rows.filter(r => r.hasOrder && !r.short).length}</strong></div></div><br>
+      ${stockTable(rows)}<p class="hint">Stock last saved: ${db.stockDate || "never"}. The warehouse updates it daily.</p></div>
+    <div class="card"><h2>All orders: shops × fruits</h2>${pivot(false)}</div>
+    <div class="card"><h2>Daily history</h2>${histBlock()}</div></div>`;
+}
+
+function shopRows(){
+  const rows = SHOPS.filter(s => s.toLowerCase().includes(filter.toLowerCase()));
+  if(!rows.length) return `<div class="empty"><b>🔎</b>No shop matches "${esc(filter)}".</div>`;
+  return rows.map(s => { const o = db.orders[s], st = shopStatus(s);
+    const items = o ? o.batches.reduce((n,b) => n+b.items.length, 0) : 0;
+    return `<div class="row" tabindex="0" data-act="open" data-s="${s}"><span class="n">${s}</span>
+      <span class="hint">${items?items+" items":""}</span><span class="pill ${st.cls}">${st.label}</span></div>`; }).join("");
+}
+
+// Fruits the warehouse can't fully cover today (from stock vs total ordered), used to block Prepared/Delivered
+function shortFruits(){ return new Set(calcRows(db).filter(r => r.short).map(r => r.fruit)); }
+function viewShopDetail(){
+  const o = db.orders[selShop] || {batches:[]};
+  let h = `<div class="card"><div class="top"><h2>${selShop}</h2>
+    <button class="btn ghost sm" data-act="back">← All shops</button></div>`;
+  if(!o.batches.length) return h + `<div class="empty"><b>🕒</b>${selShop} hasn't submitted an order today.</div></div>`;
+  const short = shortFruits();
+  h += o.batches.map((b,i) => {
+    const blocked = b.items.some(it => short.has(it.fruit));
+    let c = `<div class="card" style="margin-bottom:10px"><h2>Order #${i+1} <span class="pill ${b.status}">${b.status}</span></h2>
+      <ul class="items">${b.items.map(it=>`<li><span class="n">${esc(it.fruit)}${short.has(it.fruit)?` <span class="pill buyp">short</span>`:""}</span><span class="q">${qtyText(it)}</span></li>`).join("")}</ul><br>`;
+    if(blocked) c += `<div class="banner alertline"><b>⚠️ Can't prepare or deliver yet.</b> Warehouse stock doesn't cover every fruit here (marked "short" above). Buy the shortfall or update stock, then come back.</div>`;
+    c += `<div class="top"><button class="btn" data-act="status" data-b="${i}" data-v="Prepared" ${(b.status!=="Submitted"||blocked)?"disabled":""}>Mark as Prepared</button>
+      <button class="btn o" data-act="status" data-b="${i}" data-v="Delivered" ${(b.status==="Delivered"||blocked)?"disabled":""}>Mark as Delivered</button></div>
+      <p class="hint">Marking Delivered subtracts this order's fruit from warehouse stock.</p></div>`;
+    return c;
+  }).join("");
+  return h + `</div>`;
+}
+
+// ---- Render ----
+function render(){
+  $("app").innerHTML = !session ? viewLogin() : session.role==="shop" ? viewShop() : session.role==="owner" ? viewOwner() : viewWH();
+  if(stockFocus){                            // jump from a shortage alert to that fruit's row in the Stock tab
+    const row = $("stockrow-"+stockFocus);
+    if(row){ row.scrollIntoView({block:"center", behavior:"smooth"}); const el = $("s_"+stockFocus); if(el) el.focus(); }
+    stockFocus = null;
+  }
+  const f = $("flt"); if(f) f.oninput = e => { filter = e.target.value; $("list").innerHTML = shopRows(); };
+}
+
+// ---- Actions (one delegated click handler) ----
+function login(){
+  const u = $("u").value.trim(), p = $("p").value;
+  if(loginRole === "shop"){
+    const digits = u.replace(/\D/g,""), id = digits ? "Shop-"+digits.padStart(2,"0") : u;
+    if(!SHOPS.includes(id) || p !== SHOP_PASS){ loginErr = "Wrong shop ID or password."; return render(); }
+    session = {role:"shop", id};
+  } else if(loginRole === "wh"){
+    if(u.toLowerCase() !== WH_USER || p !== WH_PASS){ loginErr = "Wrong username or password."; return render(); }
+    session = {role:"wh"};
+  } else {
+    if(u.toLowerCase() !== OWNER_USER || p !== OWNER_PASS){ loginErr = "Wrong owner username or password."; return render(); }
+    session = {role:"owner"};
+  }
+  loginErr = ""; saveSession(); render();
+}
+
+// ---- Export: warehouse order-value report as Excel or PDF, via the downloads capability ----
+async function doExport(kind){
+  const rows = calcRows(db).filter(r => r.hasOrder);
+  if(!rows.length){ note = "Nothing to export yet — no orders today."; return render(); }
+  const total = r2(rows.reduce((s,r) => s+r.value, 0));
+  let dl = null; try{ dl = await claude.use("downloads"); }catch(e){}
+  if(!dl){ note = "Downloads aren't available in this view."; return render(); }
+  try{
+    let blob, filename;
+    if(kind === "xlsx"){
+      const aoa = [["Fruit","Ordered (bkt)","In stock (bkt)","To buy (bkt)","Price/bkt","Value"]];
+      rows.forEach(r => aoa.push([r.fruit, r.ordered, r.stock, r.short ? r.buy : "covered", r.price||0, r.value]));
+      aoa.push(["TOTAL","","","","",total]);
+      const wb = XLSX.utils.book_new(), ws = XLSX.utils.aoa_to_sheet(aoa);
+      XLSX.utils.book_append_sheet(wb, ws, "Orders "+db.date);
+      blob = new Blob([XLSX.write(wb,{bookType:"xlsx",type:"array"})], {type:"application/octet-stream"});
+      filename = "freshlink-orders-"+db.date+".xlsx";
+    } else {
+      const {jsPDF} = window.jspdf, doc = new jsPDF();
+      doc.setFontSize(14); doc.text("FreshLink \u2014 order value report ("+db.date+")", 14, 15);
+      doc.autoTable({startY:20, styles:{fontSize:9},
+        head:[["Fruit","Ordered (bkt)","In stock (bkt)","To buy (bkt)","Price/bkt","Value"]],
+        body: rows.map(r => [r.fruit, r.ordered, r.stock, r.short ? r.buy : "covered", r.price?money(r.price):"-", money(r.value)]),
+        foot:[["TOTAL","","","","",money(total)]]});
+      blob = doc.output("blob");
+      filename = "freshlink-orders-"+db.date+".pdf";
+    }
+    await dl.save({filename, data:blob});
+    note = "Download ready — check your device's save prompt.";
+  }catch(err){
+    note = (err && err.code === "declined") ? "" : "Couldn't prepare the download. Please try again.";
+  }
+  render();
+}
+
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-act]"); if(!b) return;
+  const act = b.dataset.act, i = Number(b.dataset.i);
+  db = loadData();                              // pick up the latest data (and roll over to a new day)
+  if(act!=="reset") resetArmed = false;
+  note = "";
+  if(act==="role"){ loginRole = b.dataset.v; loginErr = ""; }
+  else if(act==="login") return login();
+  else if(act==="logout"){ session = null; editIdx = null; selShop = null; saveSession(); }
+  else if(act==="save-item"){
+    const o = shopData(session.id); if(o.batches.length >= MAX_ORDERS_PER_DAY) return render();
+    const qty = parseFloat($("q").value);
+    if(!(qty > 0)){ $("ierr").textContent = "Enter a quantity above 0."; return; }
+    const item = {fruit:$("f").value, qty, unit:$("un").value};
+    // Safety check: an unusually large quantity needs a second tap, to catch a typo
+    const key = item.fruit+"|"+qty+"|"+item.unit;
+    if(qty >= BIG_ORDER_QTY && bigKey !== key){ bigKey = key; $("ierr").textContent = "That's "+qty+" Bucket/Caja — tap the button again to confirm."; return; }
+    bigKey = "";
+    editIdx !== null ? o.draft.items[editIdx] = item : o.draft.items.push(item);
+    editIdx = null; saveData();
+  }
+  else if(act==="edit") editIdx = i;
+  else if(act==="del"){ const o = shopData(session.id); o.draft.items.splice(i,1); editIdx = null; saveData(); }
+  else if(act==="submit"){
+    const o = shopData(session.id);
+    if(o.draft.items.length && o.batches.length < MAX_ORDERS_PER_DAY){
+      o.batches.push({items:o.draft.items, status:"Submitted"}); o.draft.items = []; editIdx = null; saveData();
+    }
+  }
+  else if(act==="tab") whTab = b.dataset.v;
+  else if(act==="save-stock"){          // warehouse records what is physically on hand, in Bucket/Caja
+    db.stock = {}; FRUITS.forEach(f => { db.stock[f] = Math.max(0, parseFloat($("s_"+f).value) || 0); });
+    db.stockDate = todayStr(); saveData(); note = "Stock saved. The owner dashboard is updated.";
+  }
+  else if(act==="save-price"){          // warehouse records what each fruit costs, for order-value totals
+    db.price = {}; FRUITS.forEach(f => { db.price[f] = Math.max(0, parseFloat($("p_"+f).value) || 0); });
+    db.priceDate = todayStr(); saveData(); note = "Prices saved. Order values are updated.";
+  }
+  else if(act==="export-xlsx"){ note = "Preparing your Excel file…"; render(); doExport("xlsx"); return; }
+  else if(act==="export-pdf"){ note = "Preparing your PDF…"; render(); doExport("pdf"); return; }
+  else if(act==="open") selShop = b.dataset.s;
+  else if(act==="back") selShop = null;
+  else if(act==="status"){                    // guard again here: stock may have changed since the buttons were drawn
+    const o = db.orders[selShop], bi = Number(b.dataset.b), batch = o.batches[bi];
+    const blocked = batch.items.some(it => shortFruits().has(it.fruit));
+    if(!blocked){
+      const wasDelivered = batch.status === "Delivered";
+      batch.status = b.dataset.v;
+      // Deliver, for the first time, physically hands the fruit over: take it out of warehouse stock
+      if(batch.status === "Delivered" && !wasDelivered){
+        batch.items.forEach(it => { db.stock[it.fruit] = r2(Math.max(0, (Number(db.stock[it.fruit])||0) - Number(it.qty))); });
+      }
+      saveData();
+    }
+  }
+  else if(act==="reset"){
+    if(!resetArmed){ resetArmed = true; setTimeout(()=>{ resetArmed = false; if(session && session.role==="wh" && !selShop) render(); }, 4000); }
+    else { archive(db); db.orders = {}; resetArmed = false; saveData(); }
+  }
+  render();
+});
+document.addEventListener("keydown", e => {
+  if(e.key !== "Enter") return;
+  if(!session && (e.target.id==="u" || e.target.id==="p")) login();
+  else if(e.target.classList.contains("row")) e.target.click();
+});
+
+render();
+</script>
+</body>
+</html>

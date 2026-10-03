@@ -31,11 +31,11 @@
                     </div>
                     <div class="login-form-body">
                         <div class="form-gp">
-                            <label for="exampleInputEmail1">Email address</label>
-                            <input type="email" name="email" id="exampleInputEmail1" required
-                                value="{{ old('email') }}">
-                            @if ($errors->has('email'))
-                                <span class="text-danger">{{ $errors->first('email') }}</span>
+                            <label for="loginIdentifier">Email address or shop name</label>
+                            <input type="text" name="login" id="loginIdentifier" required autocomplete="username"
+                                    value="{{ old('login') }}">
+                                @if ($errors->has('login'))
+                                    <span class="text-danger">{{ $errors->first('login') }}</span>
                             @endif
                             <i class="ti-email"></i>
                         </div>

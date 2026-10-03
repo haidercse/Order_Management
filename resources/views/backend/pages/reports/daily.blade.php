@@ -48,7 +48,7 @@
         <div class="table-responsive">
             <table class="table table-bordered table-hover mb-0">
                 <thead class="thead-light">
-                    <tr><th>Fruit item</th><th>Total demand</th><th>WH stock available</th><th>Shortage / excess</th><th>Order value</th><th>Action</th></tr>
+                    <tr><th>Fruit item</th><th>Demand</th><th>WH stock available</th><th>Shortage / excess</th><th>Price / kg</th><th>Price / caja</th><th>Order value</th><th>Action</th></tr>
                 </thead>
                 <tbody>
                     @forelse ($items as $item)
@@ -57,9 +57,11 @@
                         @endphp
                         <tr class="{{ $difference < 0 ? 'table-warning' : '' }}">
                             <td><strong>{{ $item['name'] }}</strong><small class="d-block text-muted">{{ $item['code'] }}</small></td>
-                            <td>{{ number_format($item['demand'], 3) }} {{ $item['unit'] }}</td>
+                            <td>{{ number_format($item['demand_kg'], 3) }} kg<br><small class="text-muted">{{ number_format($item['demand_boxes'], 3) }} caja</small></td>
                             <td>{{ number_format($item['available'], 3) }} {{ $item['unit'] }}</td>
                             <td class="{{ $difference < 0 ? 'text-danger font-weight-bold' : 'text-success' }}">{{ $difference > 0 ? '+' : '' }}{{ number_format($difference, 3) }} {{ $item['unit'] }}</td>
+                            <td>{{ $item['price_per_kg'] === null ? '—' : $currency . ' ' . number_format($item['price_per_kg'], 2) }}</td>
+                            <td>{{ $item['price_per_box'] === null ? '—' : $currency . ' ' . number_format($item['price_per_box'], 2) }}</td>
                             <td>{{ $currency }} {{ number_format($item['value'], 2) }}</td>
                             <td>
                                 @if ($difference < 0)
@@ -70,12 +72,12 @@
                             </td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="text-center py-4">No submitted orders found for {{ $date }}.</td></tr>
+                        <tr><td colspan="8" class="text-center py-4">No submitted orders found for {{ $date }}.</td></tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
-        <div class="card-footer text-muted small">Demand is converted to the fruit's default caja equivalent where available. Stock availability is unreserved on-hand stock.</div>
+        <div class="card-footer text-muted small">Demand is shown in both kilograms and ordered Caja. Stock and shortage are shown in the fruit's default Caja equivalent where available. Prices are effective on the selected date; order value uses each submitted line's saved price.</div>
     </div>
 
     <div class="card shadow-sm">

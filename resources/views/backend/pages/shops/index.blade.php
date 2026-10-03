@@ -253,7 +253,7 @@
                         <div class="col-md-6 mb-3">
 
                             <label class="form-label">
-                                Email
+                                Shop Contact Email
                             </label>
 
                             <input
@@ -263,6 +263,23 @@
                                 class="form-control"
                             >
 
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Manager Login Email</label>
+                            <input type="email" name="manager_login_email" id="manager_login_email" class="form-control" required autocomplete="off">
+                            <small class="text-muted">This is the manager's username; it can differ from the shop contact email.</small>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Manager Password <span id="managerPasswordHint">(optional; defaults to 12345678 for a new manager)</span></label>
+                            <input type="password" name="manager_password" id="manager_password" class="form-control" minlength="8" autocomplete="new-password">
+                            <small class="text-muted">Leave blank when editing to keep the current password. If entering a password, confirm it below.</small>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Confirm Manager Password</label>
+                            <input type="password" name="manager_password_confirmation" id="manager_password_confirmation" class="form-control" minlength="8" autocomplete="new-password">
                         </div>
 
 
@@ -408,16 +425,23 @@ $(document).ready(function () {
             </div>
         `);
 
-        setTimeout(function () {
+        if (type !== 'success' || !message.includes('Temporary password:')) {
+            setTimeout(function () {
 
-            $('#alertBox .alert').fadeOut(
-                300,
-                function () {
-                    $(this).remove();
-                }
-            );
+                $('#alertBox .alert').fadeOut(
+                    300,
+                    function () {
+                        $(this).remove();
+                    }
+                );
 
-        }, 4000);
+            }, 4000);
+        }
+    }
+
+    function escapeHtml(value)
+    {
+        return $('<div>').text(value ?? '').html();
     }
 
 
@@ -569,6 +593,9 @@ $(document).ready(function () {
         $('#shopForm')[0].reset();
 
         $('#shop_id').val('');
+        $('#manager_password').prop('required', false);
+        $('#manager_password_confirmation').prop('required', false);
+        $('#managerPasswordHint').text('(optional; defaults to 12345678 for a new manager)');
 
         $('#shopModalTitle').text(
             'Add Shop'
@@ -626,10 +653,10 @@ $(document).ready(function () {
 
                 $('#shopModal').modal('hide');
 
-                showAlert(
-                    'success',
-                    response.message
-                );
+                const credentials = response.credentials
+                    ? `<br><strong>Share once with the manager:</strong><br>Email: ${escapeHtml(response.credentials.email)}<br>Temporary password: <code>${escapeHtml(response.credentials.password)}</code>`
+                    : '';
+                showAlert('success', escapeHtml(response.message) + credentials);
 
                 loadShops();
 
@@ -654,10 +681,7 @@ $(document).ready(function () {
                         }
                     );
 
-                    showAlert(
-                        'error',
-                        message
-                    );
+                    showAlert('error', escapeHtml(message));
 
                 } else {
 
@@ -685,6 +709,11 @@ $(document).ready(function () {
 
             }
 
+        });
+
+        $('#manager_password').on('input', function () {
+            const hasPassword = $(this).val().length > 0;
+            $('#manager_password_confirmation').prop('required', hasPassword);
         });
 
     });
@@ -739,6 +768,15 @@ $(document).ready(function () {
                         shop.email
                     );
 
+                    $('#manager_login_email').val(shop.manager_login_email || '');
+                    $('#manager_password').val('');
+                    $('#manager_password_confirmation').val('');
+                    $('#manager_password').prop('required', false);
+                    $('#managerPasswordHint').text(shop.manager_login_email
+                        ? '(optional; blank keeps the current password)'
+                        : '(optional; defaults to 12345678 when creating the manager login)');
+                    $('#manager_password_confirmation').prop('required', false);
+
                     $('#address').val(
                         shop.address
                     );
@@ -759,11 +797,9 @@ $(document).ready(function () {
                     $('#shopModalTitle').text(
                         'Edit Shop'
                     );
-
                     $('#saveShopBtn').text(
                         'Update Shop'
                     );
-
 
                     $('#shopModal').modal(
                         'show'
@@ -784,6 +820,25 @@ $(document).ready(function () {
 
         }
     );
+
+    $(document).on('click', '.reset-manager-password', function () {
+        const id = $(this).data('id');
+        if (!confirm('Issue a temporary password for this shop manager? Their next login will require changing it.')) {
+            return;
+        }
+
+        $.ajax({
+            url: `/admin/shops/${id}/reset-manager-password`,
+            type: 'POST',
+            success: function (response) {
+                const credentials = `<br><strong>Share once with the manager:</strong><br>Email: ${escapeHtml(response.credentials.email)}<br>Temporary password: <code>${escapeHtml(response.credentials.password)}</code>`;
+                showAlert('success', escapeHtml(response.message) + credentials);
+            },
+            error: function () {
+                showAlert('error', 'Unable to issue a temporary password.');
+            }
+        });
+    });
 
 
     /*

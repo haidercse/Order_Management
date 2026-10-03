@@ -7,6 +7,7 @@ use App\Models\Fruit;
 use App\Models\Order;
 use App\Models\Shop;
 use App\Models\SystemSetting;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -14,23 +15,26 @@ class AdminController extends Controller
 {
     public function index(Request $request)
     {
-        $today = now()->toDateString();
+        $timezone = SystemSetting::query()->where('key', 'timezone')->value('value') ?: config('app.timezone');
+        $localToday = CarbonImmutable::now($timezone);
+        $submittedFrom = $localToday->startOfDay()->utc();
+        $submittedUntil = $localToday->endOfDay()->utc();
         $submittedOrders = Order::query()
             ->whereNotNull('submitted_at')
-            ->whereDate('submitted_at', $today);
+            ->whereBetween('submitted_at', [$submittedFrom, $submittedUntil]);
 
         $todayOrdersCount = (clone $submittedOrders)->count();
         $activeShopsCount = Shop::query()->where('status', 'active')->count();
         $orderValue = DB::table('order_items')
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
             ->whereNotNull('orders.submitted_at')
-            ->whereDate('orders.submitted_at', $today)
+            ->whereBetween('orders.submitted_at', [$submittedFrom, $submittedUntil])
             ->sum(DB::raw('COALESCE(order_items.line_total, order_items.quantity * order_items.unit_price)'));
 
         $demandByFruit = DB::table('order_items')
             ->join('orders', 'orders.id', '=', 'order_items.order_id')
             ->whereNotNull('orders.submitted_at')
-            ->whereDate('orders.submitted_at', $today)
+            ->whereBetween('orders.submitted_at', [$submittedFrom, $submittedUntil])
             ->select('order_items.fruit_id')
             ->selectRaw('SUM(COALESCE(order_items.converted_kg, order_items.quantity)) AS demand_kg')
             ->groupBy('order_items.fruit_id')
