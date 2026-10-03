@@ -10,21 +10,8 @@ class MenuSeeder extends Seeder
     public function run(): void
     {
         $menus = [
-            'Menu Management' => [
-                ['title'=>'Menus','icon'=>'ti-menu','permission'=>'menu.view','children'=>[
-                    ['title'=>'Menu List','route'=>'admin.menus.index','permission'=>'menu.view'],
-                    ['title'=>'Menu Group','route'=>'admin.menu-groups.index','permission'=>'menu.view'],
-                ]],
-            ],
-            'Role Management' => [
-                ['title'=>'Roles','icon'=>'ti-lock','permission'=>'role.view','children'=>[
-                    ['title'=>'Role List','route'=>'admin.roles.index','permission'=>'role.view'],
-                ]],
-            ],
-            'Permission Management' => [
-                ['title'=>'Permissions','icon'=>'ti-key','permission'=>'permission.view','children'=>[
-                    ['title'=>'Permissions List','route'=>'admin.permissions.index','permission'=>'permission.view'],
-                ]],
+            'Dashboard' => [
+                ['title'=>'Dashboard','icon'=>'ti-dashboard','route'=>'admin.dashboard','children'=>[]],
             ],
             'Warehouse Management' => [
                 ['title'=>'Warehouse','icon'=>'ti-package','permission'=>'inventory.view','children'=>[
@@ -54,6 +41,22 @@ class MenuSeeder extends Seeder
                     ['title'=>'Excel Reports','route'=>'admin.reports.excel','permission'=>'report.excel'],
                 ]],
             ],
+            'Role Management' => [
+                ['title'=>'Roles','icon'=>'ti-lock','permission'=>'role.view','children'=>[
+                    ['title'=>'Role List','route'=>'admin.roles.index','permission'=>'role.view'],
+                ]],
+            ],
+            'Menu Management' => [
+                ['title'=>'Menus','icon'=>'ti-menu','permission'=>'menu.view','children'=>[
+                    ['title'=>'Menu List','route'=>'admin.menus.index','permission'=>'menu.view'],
+                    ['title'=>'Menu Group','route'=>'admin.menu-groups.index','permission'=>'menu.view'],
+                ]],
+            ],
+            'Permission Management' => [
+                ['title'=>'Permissions','icon'=>'ti-key','permission'=>'permission.view','children'=>[
+                    ['title'=>'Permissions List','route'=>'admin.permissions.index','permission'=>'permission.view'],
+                ]],
+            ],
         ];
 
         $groupOrder = 1;
@@ -72,7 +75,7 @@ class MenuSeeder extends Seeder
                     'title' => $parent['title'],
                 ];
                 DB::table('menus')->updateOrInsert($parentKey, [
-                    'route' => null,
+                    'route' => $parent['route'] ?? null,
                     'icon' => $parent['icon'] ?? null,
                     'permission' => $parent['permission'] ?? null,
                     'order' => $parentOrder++,

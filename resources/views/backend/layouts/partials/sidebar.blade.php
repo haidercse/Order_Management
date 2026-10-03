@@ -40,6 +40,9 @@
                                 $hasSub = $submenus->count() > 0;
 
                                 $isActive = false;
+                                if ($menu->route && request()->routeIs($menu->route)) {
+                                    $isActive = true;
+                                }
                                 foreach ($submenus as $sub) {
                                     if ($sub->route && request()->routeIs($sub->route)) {
                                         $isActive = true;
@@ -50,7 +53,7 @@
 
                             <li class="{{ $isActive ? 'active' : '' }}">
 
-                                <a href="{{ $hasSub ? 'javascript:void(0)' : '#' }}"
+                                <a href="{{ $hasSub ? 'javascript:void(0)' : ($menu->route && Route::has($menu->route) ? route($menu->route) : '#') }}"
                                     aria-expanded="{{ $isActive ? 'true' : 'false' }}">
 
                                     @if ($menu->icon)
