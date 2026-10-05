@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\Shop;
 use App\Models\SystemSetting;
 use App\Models\Unit;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -50,6 +51,7 @@ class ShopOrderController extends Controller
                     ->orderByDesc('effective_from'),
             ])
             ->where('status', true)
+            ->where('allow_box', true)
             ->orderBy('sort_order')
             ->orderBy('name')
             ->get();
@@ -57,48 +59,30 @@ class ShopOrderController extends Controller
         $units = Unit::query()
             ->where('status', true)
             ->where('is_order_unit', true)
-            ->whereIn('code', ['KG', 'BOX'])
+            ->where('code', 'BOX')
             ->orderBy('name')
             ->get();
 
         $catalog = $fruits->map(function (Fruit $fruit) use ($units): array {
-            $availableUnits = $units->filter(function (Unit $unit) use ($fruit): bool {
-                return $unit->code === 'KG' ? $fruit->allow_kg : $fruit->allow_box;
-            })->map(function (Unit $unit) use ($fruit): array {
-                $boxes = $unit->code === 'BOX'
-                    ? $fruit->boxConfigurations->map(function ($box) use ($fruit, $unit): ?array {
-                        $price = $fruit->prices->first(fn ($candidate) =>
-                            (int) $candidate->unit_id === (int) $unit->id
-                            && (int) $candidate->box_configuration_id === (int) $box->id
-                        );
-                        return $price ? [
-                            'id' => $box->id,
-                            'name' => $box->name,
-                            'weight_kg' => (float) $box->weight_kg,
-                            'price' => (float) $price->price,
-                            'currency' => $price->currency,
-                        ] : null;
-                    })->filter()->values()->all()
-                    : [];
-
-                $price = $unit->code === 'KG'
-                    ? $fruit->prices->first(fn ($candidate) =>
+            $availableUnits = $units->map(function (Unit $unit) use ($fruit): ?array {
+                $boxes = $fruit->boxConfigurations->map(function ($box) use ($fruit, $unit): ?array {
+                    $price = $fruit->prices->first(fn ($candidate) =>
                         (int) $candidate->unit_id === (int) $unit->id
-                        && $candidate->box_configuration_id === null
-                    )
-                    : null;
+                        && (int) $candidate->box_configuration_id === (int) $box->id
+                    );
+                    return $price ? [
+                        'id' => $box->id,
+                        'name' => $box->name,
+                        'weight_kg' => (float) $box->weight_kg,
+                    ] : null;
+                })->filter()->values()->all();
 
-                if (($unit->code === 'KG' && !$price) || ($unit->code === 'BOX' && !$boxes)) {
+                if (!$boxes) {
                     return null;
                 }
 
                 return [
                     'id' => $unit->id,
-                    'code' => $unit->code,
-                    'name' => $unit->name,
-                    'symbol' => $unit->symbol,
-                    'price' => $price ? (float) $price->price : null,
-                    'currency' => $price?->currency,
                     'boxes' => $boxes,
                 ];
             })->filter()->values()->all();
@@ -109,11 +93,28 @@ class ShopOrderController extends Controller
                 'code' => $fruit->code,
                 'units' => $availableUnits,
             ];
-        })->filter(fn ($fruit) => count($fruit['units']) > 0)->values();
+        })->filter(fn ($fruit) => count($fruit['units']) > 0)->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)->values();
 
-        $currency = SystemSetting::query()->where('key', 'currency')->value('value') ?: 'EUR';
+        return view('shop.orders.index', compact('shop', 'order', 'orderDate', 'catalog', 'initialItems'));
+    }
 
-        return view('shop.orders.index', compact('shop', 'order', 'orderDate', 'catalog', 'currency', 'initialItems'));
+    public function downloadPdf(Request $request, int $order)
+    {
+        $user = $request->user();
+        abort_unless($user->hasRole('shop-manager') && $user->shop_id, 403);
+
+        $shop = Shop::query()
+            ->whereKey($user->shop_id)
+            ->where('status', 'active')
+            ->firstOrFail();
+        $order = Order::query()
+            ->with(['items.fruit', 'items.unit', 'items.boxConfiguration'])
+            ->whereKey($order)
+            ->where('shop_id', $shop->id)
+            ->firstOrFail();
+        return Pdf::loadView('shop.orders.pdf', compact('shop', 'order'))
+            ->setPaper('a4')
+            ->download("shop-order-{$order->id}.pdf");
     }
 
     public function saveDraft(Request $request)
@@ -143,7 +144,7 @@ class ShopOrderController extends Controller
             'items.*.fruit_id' => ['required', 'integer', 'distinct', 'exists:fruits,id'],
             'items.*.unit_id' => ['required', 'integer', 'exists:units,id'],
             'items.*.box_configuration_id' => ['nullable', 'integer', 'exists:fruit_box_configurations,id'],
-            'items.*.quantity' => ['required', 'numeric', 'gt:0', 'decimal:0,3'],
+            'items.*.quantity' => ['required', 'integer', 'gt:0'],
         ]);
 
         if ($submit && empty($data['items'])) {
@@ -193,7 +194,7 @@ class ShopOrderController extends Controller
             $units = Unit::query()
                 ->where('status', true)
                 ->where('is_order_unit', true)
-                ->whereIn('code', ['KG', 'BOX'])
+                ->where('code', 'BOX')
                 ->whereIn('id', collect($rows)->pluck('unit_id')->unique())
                 ->get()
                 ->keyBy('id');
@@ -204,34 +205,21 @@ class ShopOrderController extends Controller
                 $unit = $units->get((int) $row['unit_id']);
                 if (!$fruit || !$unit) {
                     throw ValidationException::withMessages([
-                        "items.{$index}.fruit_id" => 'Choose an active fruit and order unit.',
+                        "items.{$index}.fruit_id" => 'Choose an active fruit and order by Caja.',
                     ]);
                 }
 
-                if ($unit->code === 'KG' && !$fruit->allow_kg) {
+                if (!$fruit->allow_box) {
                     throw ValidationException::withMessages([
-                        "items.{$index}.unit_id" => 'This fruit cannot be ordered by weight.',
-                    ]);
-                }
-
-                if ($unit->code === 'BOX' && !$fruit->allow_box) {
-                    throw ValidationException::withMessages([
-                        "items.{$index}.unit_id" => 'This fruit cannot be ordered by box.',
+                        "items.{$index}.unit_id" => 'This fruit cannot be ordered by Caja.',
                     ]);
                 }
 
                 $boxId = $row['box_configuration_id'] ?? null;
-                $box = null;
-                if ($unit->code === 'BOX') {
-                    $box = $boxId ? $fruit->boxConfigurations->firstWhere('id', (int) $boxId) : null;
-                    if (!$box) {
-                        throw ValidationException::withMessages([
-                            "items.{$index}.box_configuration_id" => 'Select an active box configuration for this fruit.',
-                        ]);
-                    }
-                } elseif ($boxId) {
+                $box = $boxId ? $fruit->boxConfigurations->firstWhere('id', (int) $boxId) : null;
+                if (!$box) {
                     throw ValidationException::withMessages([
-                        "items.{$index}.box_configuration_id" => 'Box configuration is only used for box orders.',
+                        "items.{$index}.box_configuration_id" => 'Select an active Caja configuration for this fruit.',
                     ]);
                 }
 
@@ -276,10 +264,16 @@ class ShopOrderController extends Controller
             $order->save();
         });
 
+        $savedOrder = Order::query()
+            ->where('shop_id', $shop->id)
+            ->whereDate('order_date', $orderDate)
+            ->firstOrFail();
+
         return response()->json([
             'status' => 'success',
             'message' => $submit ? 'Your order was sent to the warehouse.' : 'Your draft order was saved.',
             'redirect' => route('shop.orders.index'),
+            'pdf_url' => route('shop.orders.pdf', $savedOrder->id),
         ]);
     }
 

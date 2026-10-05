@@ -85,7 +85,7 @@
                                 type="button"
                                 class="btn btn-sm btn-info reset-manager-password"
                                 data-id="{{ $shop->id }}"
-                                title="Issue a temporary password"
+                                title="Reset manager password to default"
                             >
                                 <i class="fa fa-key"></i>
                             </button>

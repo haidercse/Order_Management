@@ -6,13 +6,14 @@ use App\Http\Controllers\Controller;
 use App\Models\Shop;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Spatie\Permission\Models\Role;
 
 class ShopController extends Controller
 {
+    private const DEFAULT_MANAGER_PASSWORD = '12345678';
+
     public function index(Request $request)
     {
         $query = Shop::query()->with(['users' => fn ($users) => $users->role('shop-manager')->orderBy('id')]);
@@ -81,7 +82,7 @@ class ShopController extends Controller
 
         $managerPassword = filled($validated['manager_password'] ?? null)
             ? $validated['manager_password']
-            : '12345678';
+            : self::DEFAULT_MANAGER_PASSWORD;
 
         $shop = DB::transaction(function () use ($validated, $managerPassword): Shop {
             $shop = Shop::create(collect($validated)->except(['manager_login_email', 'manager_password', 'manager_password_confirmation'])->all());
@@ -148,7 +149,7 @@ class ShopController extends Controller
 
         $managerPassword = filled($validated['manager_password'] ?? null)
             ? $validated['manager_password']
-            : '12345678';
+            : self::DEFAULT_MANAGER_PASSWORD;
         $hasManager = $shop->users()->role('shop-manager')->exists();
         $credentialUpdate = !$hasManager || filled($validated['manager_password'] ?? null);
 
@@ -198,19 +199,19 @@ class ShopController extends Controller
     {
         $shop = Shop::findOrFail($id);
         $manager = $shop->users()->role('shop-manager')->firstOrFail();
-        $temporaryPassword = Str::random(18);
+        $defaultPassword = self::DEFAULT_MANAGER_PASSWORD;
 
         $manager->forceFill([
-            'password' => $temporaryPassword,
+            'password' => $defaultPassword,
             'must_change_password' => true,
         ])->save();
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Temporary password generated. Share it securely; the manager must change it at next login.',
+            'message' => 'Manager password reset to the default password. Share it securely; the manager must change it at next login.',
             'credentials' => [
                 'email' => $manager->email,
-                'password' => $temporaryPassword,
+                'password' => $defaultPassword,
             ],
         ]);
     }

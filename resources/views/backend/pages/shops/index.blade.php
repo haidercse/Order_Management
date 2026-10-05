@@ -425,7 +425,7 @@ $(document).ready(function () {
             </div>
         `);
 
-        if (type !== 'success' || !message.includes('Temporary password:')) {
+        if (type !== 'success' || (!message.includes('Temporary password:') && !message.includes('Default password:'))) {
             setTimeout(function () {
 
                 $('#alertBox .alert').fadeOut(
@@ -823,7 +823,7 @@ $(document).ready(function () {
 
     $(document).on('click', '.reset-manager-password', function () {
         const id = $(this).data('id');
-        if (!confirm('Issue a temporary password for this shop manager? Their next login will require changing it.')) {
+        if (!confirm('Reset this shop manager password to 12345678? Their next login will require changing it.')) {
             return;
         }
 
@@ -831,11 +831,11 @@ $(document).ready(function () {
             url: `/admin/shops/${id}/reset-manager-password`,
             type: 'POST',
             success: function (response) {
-                const credentials = `<br><strong>Share once with the manager:</strong><br>Email: ${escapeHtml(response.credentials.email)}<br>Temporary password: <code>${escapeHtml(response.credentials.password)}</code>`;
+                const credentials = `<br><strong>Share once with the manager:</strong><br>Email: ${escapeHtml(response.credentials.email)}<br>Default password: <code>${escapeHtml(response.credentials.password)}</code>`;
                 showAlert('success', escapeHtml(response.message) + credentials);
             },
             error: function () {
-                showAlert('error', 'Unable to issue a temporary password.');
+                showAlert('error', 'Unable to reset the manager password.');
             }
         });
     });

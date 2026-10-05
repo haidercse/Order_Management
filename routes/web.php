@@ -30,6 +30,9 @@ use App\Http\Controllers\admin\AuthController;
 |
 */
 
+Route::get('/test', function () {
+    return view('test3_1st');
+})->name('test');
 Route::get('/', function () {
     if (auth()->check() && auth()->user()->hasRole('shop-manager')) {
         return redirect()->route('shop.orders.index');
@@ -50,6 +53,7 @@ Route::middleware(['auth', 'password.change.required', 'role:shop-manager'])->pr
     Route::get('/orders', [ShopOrderController::class, 'index'])->name('orders.index');
     Route::post('/orders/draft', [ShopOrderController::class, 'saveDraft'])->name('orders.draft');
     Route::post('/orders/submit', [ShopOrderController::class, 'submit'])->name('orders.submit');
+    Route::get('/orders/{order}/pdf', [ShopOrderController::class, 'downloadPdf'])->name('orders.pdf');
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 });
 
