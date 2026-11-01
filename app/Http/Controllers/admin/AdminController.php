@@ -36,7 +36,7 @@ class AdminController extends Controller
             ->whereNotNull('orders.submitted_at')
             ->whereBetween('orders.submitted_at', [$submittedFrom, $submittedUntil])
             ->select('order_items.fruit_id')
-            ->selectRaw('SUM(COALESCE(order_items.converted_kg, order_items.quantity)) AS demand_kg')
+            ->selectRaw('SUM(COALESCE(order_items.warehouse_weight_kg, order_items.converted_kg, order_items.quantity)) AS demand_kg')
             ->groupBy('order_items.fruit_id')
             ->get()
             ->keyBy('fruit_id');

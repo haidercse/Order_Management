@@ -29,10 +29,10 @@ use App\Http\Controllers\admin\AuthController;
 | contains the "web" middleware group. Now create something great!
 |
 */
-
 Route::get('/test', function () {
-    return view('test3_1st');
+    return view('pdf_style');
 })->name('test');
+
 Route::get('/', function () {
     if (auth()->check() && auth()->user()->hasRole('shop-manager')) {
         return redirect()->route('shop.orders.index');
@@ -164,7 +164,12 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'password.change.req
 
     Route::prefix('orders')->name('orders.')->group(function () {
         Route::get('/', [OrderController::class, 'index'])->name('index');
+        Route::get('/warehouse-sheet', [OrderController::class, 'warehouseSheet'])->name('warehouse-sheet');
+        Route::post('/warehouse-weights', [OrderController::class, 'saveWarehouseWeights'])->name('warehouse-weights.save');
+        Route::get('/warehouse-pdf', [OrderController::class, 'warehousePdf'])->name('warehouse-pdf');
         Route::get('/{id}', [OrderController::class, 'show'])->name('show');
+        Route::post('/{id}/weights', [OrderController::class, 'updateWeights'])->name('weights');
+        Route::get('/{id}/final-pdf', [OrderController::class, 'finalPdf'])->name('final-pdf');
         Route::post('/{id}/status', [OrderController::class, 'updateStatus'])->name('status');
     });
 

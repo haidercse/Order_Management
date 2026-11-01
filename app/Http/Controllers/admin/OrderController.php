@@ -7,6 +7,9 @@ use App\Models\InventoryStock;
 use App\Models\InventoryTransaction;
 use App\Models\Order;
 use App\Models\SystemSetting;
+use App\Support\WarehousePdfItemBuilder;
+use App\Support\WarehouseWeightAllocator;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +19,7 @@ class OrderController extends Controller
 {
     public function index(Request $request)
     {
+        $defaultDate = $this->defaultOrderDate();
         $query = Order::query()
             ->with(['shop', 'items.fruit', 'items.unit', 'items.boxConfiguration'])
             ->whereNotNull('submitted_at')
@@ -27,17 +31,17 @@ class OrderController extends Controller
             'search' => ['nullable', 'string', 'max:150'],
         ]);
 
-        if (!empty($filters['date'])) {
+        if (! empty($filters['date'])) {
             $query->whereDate('order_date', $filters['date']);
         } else {
-            $query->whereDate('order_date', $this->defaultOrderDate());
+            $query->whereDate('order_date', $defaultDate);
         }
 
-        if (!empty($filters['status'])) {
+        if (! empty($filters['status'])) {
             $query->where('status', $filters['status']);
         }
 
-        if (!empty($filters['search'])) {
+        if (! empty($filters['search'])) {
             $search = $filters['search'];
             $query->whereHas('shop', function ($shop) use ($search) {
                 $shop->where('name', 'like', "%{$search}%")
@@ -54,7 +58,7 @@ class OrderController extends Controller
             ]);
         }
 
-        return view('backend.pages.orders.index', compact('orders', 'filters'));
+        return view('backend.pages.orders.index', compact('orders', 'filters', 'defaultDate'));
     }
 
     private function defaultOrderDate(): string
@@ -63,6 +67,136 @@ class OrderController extends Controller
         $timezone = SystemSetting::query()->where('key', 'timezone')->value('value') ?: config('app.timezone');
 
         return CarbonImmutable::today($timezone)->addDays(max(1, $days))->toDateString();
+    }
+
+    public function warehouseSheet(Request $request)
+    {
+        $date = $request->validate([
+            'date' => ['nullable', 'date_format:Y-m-d'],
+        ])['date'] ?? $this->defaultOrderDate();
+
+        return view('backend.pages.orders.warehouse-sheet', $this->warehouseSheetData($date));
+    }
+
+    private function warehouseSheetData(string $date): array
+    {
+        $orders = Order::query()
+            ->with([
+                'shop',
+                'items.boxConfiguration',
+                'items.fruit.boxConfigurations' => fn ($query) => $query->where('status', true)->orderByDesc('is_default'),
+                'items.fruit.prices' => fn ($query) => $query->where('is_active', true)
+                    ->whereDate('effective_from', '<=', $date)
+                    ->where(fn ($price) => $price->whereNull('effective_to')->orWhereDate('effective_to', '>=', $date))
+                    ->with('unit')
+                    ->orderByDesc('effective_from'),
+            ])
+            ->whereDate('order_date', $date)
+            ->where('status', 'submitted')
+            ->whereNotNull('submitted_at')
+            ->get();
+
+        $items = $orders
+            ->flatMap(fn (Order $order) => $order->items->map(fn ($item) => [
+                'item' => $item,
+                'order' => $order,
+            ]))
+            ->groupBy(fn ($row) => $row['item']->fruit_id)
+            ->map(function ($rows): array {
+                $firstItem = $rows->first()['item'];
+                $allWeightsSaved = $rows->every(fn ($row) => $row['item']->warehouse_weight_kg !== null);
+
+                return [
+                    'fruit_id' => (int) $firstItem->fruit_id,
+                    'name' => $firstItem->fruit->display_name ?: $firstItem->fruit->name,
+                    'quantity' => $rows->sum(fn ($row) => (float) $row['item']->quantity),
+                    'shop_count' => $rows->pluck('order.shop_id')->unique()->count(),
+                    'weight' => $allWeightsSaved
+                        ? $rows->sum(fn ($row) => (float) $row['item']->warehouse_weight_kg)
+                        : null,
+                    'complete' => $allWeightsSaved,
+                ];
+            })
+            ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values();
+
+        return [
+            'date' => $date,
+            'orders' => $orders,
+            'items' => $items,
+            'allWeightsSaved' => $items->isNotEmpty() && $items->every(fn ($item) => $item['complete']),
+        ];
+    }
+
+    public function saveWarehouseWeights(Request $request)
+    {
+        $data = $request->validate([
+            'date' => ['required', 'date_format:Y-m-d'],
+            'weights' => ['required', 'array', 'min:1'],
+            'weights.*' => ['required', 'numeric', 'decimal:0,3', 'gt:0', 'max:999999.999'],
+        ]);
+
+        DB::transaction(function () use ($data): void {
+            $orders = Order::query()
+                ->with('items')
+                ->whereDate('order_date', $data['date'])
+                ->where('status', 'submitted')
+                ->whereNotNull('submitted_at')
+                ->lockForUpdate()
+                ->get();
+
+            $itemsByFruit = $orders->flatMap->items->groupBy('fruit_id');
+            $expectedFruitIds = $itemsByFruit->keys()->map(fn ($id) => (string) $id)->sort()->values();
+            $receivedFruitIds = collect(array_keys($data['weights']))->map(fn ($id) => (string) $id)->sort()->values();
+
+            if ($expectedFruitIds->isEmpty() || $expectedFruitIds->all() !== $receivedFruitIds->all()) {
+                throw ValidationException::withMessages([
+                    'weights' => 'The submitted fruit list changed. Refresh the warehouse sheet and try again.',
+                ]);
+            }
+
+            foreach ($itemsByFruit as $fruitId => $fruitItems) {
+                $totalGrams = (int) round((float) $data['weights'][$fruitId] * 1000);
+                $totalTareKg = $fruitItems->sum(fn ($item) => (float) $item->quantity * (float) $item->unit_tare_kg);
+                if ($totalGrams / 1000 <= $totalTareKg) {
+                    throw ValidationException::withMessages([
+                        'weights' => 'The measured total weight must be greater than the combined tare weight.',
+                    ]);
+                }
+
+                try {
+                    $allocatedGrams = (new WarehouseWeightAllocator)->distribute($fruitItems, $totalGrams);
+                } catch (\InvalidArgumentException $exception) {
+                    throw ValidationException::withMessages([
+                        'weights' => 'The total weight must provide at least 0.001 kg for each shop order item.',
+                    ]);
+                }
+
+                foreach ($fruitItems as $item) {
+                    $item->warehouse_weight_kg = number_format($allocatedGrams[$item->id] / 1000, 3, '.', '');
+                    $item->save();
+                }
+            }
+        });
+
+        return redirect()
+            ->route('admin.orders.warehouse-sheet', ['date' => $data['date']])
+            ->with('success', 'Consolidated warehouse weights saved and distributed across shop orders by Caja quantity.');
+    }
+
+    public function warehousePdf(Request $request)
+    {
+        $date = $request->validate([
+            'date' => ['nullable', 'date_format:Y-m-d'],
+        ])['date'] ?? $this->defaultOrderDate();
+
+        $sheet = $this->warehouseSheetData($date);
+        $sheet['pdfItems'] = (new WarehousePdfItemBuilder)->build($sheet['orders']);
+        $sheet['warehouseName'] = SystemSetting::query()->where('key', 'warehouse_name')->value('value') ?: 'Warehouse';
+
+        return Pdf::loadView('backend.pages.orders.warehouse-pdf', $sheet)
+            ->setPaper('a4')
+            ->download("warehouse-picking-sheet-{$date}.pdf");
     }
 
     public function show(int $id)
@@ -75,6 +209,62 @@ class OrderController extends Controller
             'status' => 'success',
             'html' => view('backend.pages.orders.partials.details', compact('order'))->render(),
         ]);
+    }
+
+    public function updateWeights(Request $request, int $id)
+    {
+        $weights = $request->validate([
+            'weights' => ['required', 'array'],
+            'weights.*' => ['required', 'numeric', 'gt:0', 'max:999999.999'],
+        ])['weights'];
+
+        DB::transaction(function () use ($id, $weights): void {
+            $order = Order::query()->with('items')->lockForUpdate()->findOrFail($id);
+            if ($order->status !== 'submitted') {
+                throw ValidationException::withMessages([
+                    'weights' => 'Warehouse weights can only be changed before the order is marked prepared.',
+                ]);
+            }
+
+            $expectedIds = $order->items->pluck('id')->map(fn ($itemId) => (int) $itemId)->sort()->values();
+            $receivedIds = collect(array_keys($weights))->map(fn ($itemId) => (int) $itemId)->sort()->values();
+            if ($expectedIds->all() !== $receivedIds->all()) {
+                throw ValidationException::withMessages([
+                    'weights' => 'Submit a weight for every item in this order.',
+                ]);
+            }
+
+            foreach ($order->items as $item) {
+                $item->warehouse_weight_kg = $weights[$item->id];
+                $item->save();
+            }
+        });
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Warehouse weights saved.',
+        ]);
+    }
+
+    public function finalPdf(int $id)
+    {
+        $order = Order::query()
+            ->with(['shop', 'items.fruit', 'items.unit', 'items.boxConfiguration'])
+            ->whereNotNull('submitted_at')
+            ->findOrFail($id);
+
+        abort_if(
+            $order->items->isEmpty() || $order->items->contains(fn ($item) => $item->warehouse_weight_kg === null),
+            422,
+            'Enter and save a warehouse weight for every order item before downloading the final PDF.'
+        );
+
+        $shop = $order->shop;
+        $currency = SystemSetting::query()->where('key', 'currency')->value('value') ?: 'EUR';
+
+        return Pdf::loadView('test2', compact('shop', 'order', 'currency'))
+            ->setPaper('a4', 'landscape')
+            ->download("warehouse-order-{$order->id}.pdf");
     }
 
     public function updateStatus(Request $request, int $id)
@@ -98,6 +288,12 @@ class OrderController extends Controller
             }
 
             if ($data['status'] === 'prepared') {
+                if ($order->items->isEmpty() || $order->items->contains(fn ($item) => $item->warehouse_weight_kg === null)) {
+                    throw ValidationException::withMessages([
+                        'weights' => 'Enter and save a warehouse weight for every item before marking this order prepared.',
+                    ]);
+                }
+
                 $this->assertOrderStockAvailable($order);
             }
 
@@ -129,7 +325,7 @@ class OrderController extends Controller
         }
 
         foreach ($order->items as $item) {
-            $remainingKg = (float) ($item->converted_kg ?? $item->quantity);
+            $remainingKg = (float) ($item->warehouse_weight_kg ?? $item->converted_kg ?? $item->quantity);
             if ($remainingKg <= 0) {
                 throw ValidationException::withMessages([
                     'stock' => 'Order item quantity must be greater than zero before it can be sent.',
@@ -219,7 +415,7 @@ class OrderController extends Controller
 
         $demandByFruit = $order->items
             ->groupBy('fruit_id')
-            ->map(fn ($items) => $items->sum(fn ($item) => (float) ($item->converted_kg ?? $item->quantity)));
+            ->map(fn ($items) => $items->sum(fn ($item) => (float) ($item->warehouse_weight_kg ?? $item->converted_kg ?? $item->quantity)));
 
         foreach ($demandByFruit as $fruitId => $demandKg) {
             $stocks = InventoryStock::query()

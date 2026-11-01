@@ -23,7 +23,7 @@
                 <div class="col-md-3 mb-2 mb-md-0">
                     <select id="priceFruitFilter" class="form-control">
                         <option value="">All fruits</option>
-                        @foreach ($fruits as $fruit)<option value="{{ $fruit->id }}">{{ $fruit->display_name ?: $fruit->name }}</option>@endforeach
+                        @foreach ($fruits as $fruit)<option value="{{ $fruit->id }}">{{ $fruit->display_name ?: $fruit->name }} ({{ $fruit->code }})</option>@endforeach
                     </select>
                 </div>
                 <div class="col-md-2 mb-2 mb-md-0"><select id="priceStatusFilter" class="form-control"><option value="">All statuses</option><option value="1">Active</option><option value="0">Inactive</option></select></div>
@@ -96,6 +96,17 @@ $(function () {
     const indexUrl = @json(route('admin.fruit-prices.index'));
     const storeUrl = @json(route('admin.fruit-prices.store'));
     $.ajaxSetup({ headers: { 'X-CSRF-TOKEN': @json(csrf_token()) } });
+    $('#priceFruitFilter').select2({
+        placeholder: 'Search and select a fruit',
+        allowClear: true,
+        width: '100%'
+    });
+    $('#price_fruit_id, #price_box_configuration_id').select2({
+        dropdownParent: $('#priceModal'),
+        placeholder: 'Search and select',
+        allowClear: true,
+        width: '100%'
+    });
     function alertPrice(type, message) {
         $('<div>', { class: `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show` }).text(message)
             .append($('<button>', { type: 'button', class: 'close', 'data-dismiss': 'alert' }).append('<span>&times;</span>')).appendTo('#priceAlert');
@@ -121,17 +132,22 @@ $(function () {
             const belongs = String($(this).data('fruit-id')) === String(fruitId);
             $(this).prop('disabled', !belongs).toggle(belongs);
         });
-        $('#price_box_configuration_id').val(selectedId || '');
+        $('#price_box_configuration_id').val(selectedId || '').trigger('change.select2');
     }
     $(document).on('click', '#priceTableWrapper .pagination a', function (event) { event.preventDefault(); loadPrices($(this).attr('href')); });
     let searchTimer;
     $('#priceSearch').on('input', function () { clearTimeout(searchTimer); searchTimer = setTimeout(() => loadPrices(), 300); });
     $('#priceFruitFilter, #priceStatusFilter').on('change', () => loadPrices());
-    $('#resetPriceFilter').on('click', function () { $('#priceSearch, #priceFruitFilter, #priceStatusFilter').val(''); loadPrices(); });
+    $('#resetPriceFilter').on('click', function () {
+        $('#priceSearch, #priceStatusFilter').val('');
+        $('#priceFruitFilter').val('').trigger('change');
+    });
     $('#price_fruit_id').on('change', () => syncBoxOptions());
     $('#price_unit_id').on('change', () => syncBoxOptions());
     $('#addPriceBtn').on('click', function () {
-        $('#priceForm')[0].reset(); $('#price_id').val(''); $('#price_currency').val('EUR');
+        $('#priceForm')[0].reset(); $('#price_id').val('');
+        $('#price_fruit_id, #price_box_configuration_id').val('').trigger('change');
+        $('#price_currency').val('EUR');
         $('#price_is_active').val('1'); $('#price_effective_from').val(new Date().toISOString().slice(0, 10));
         syncBoxOptions(); $('#priceModalTitle').text('Add Fruit Price'); $('#savePriceBtn').text('Save Price'); $('#priceModal').modal('show');
     });
@@ -146,7 +162,7 @@ $(function () {
     $(document).on('click', '.edit-price', function () {
         $.get(`/admin/fruit-prices/edit/${$(this).data('id')}`)
             .done(({ data }) => {
-                $('#price_id').val(data.id); $('#price_fruit_id').val(data.fruit_id); $('#price_unit_id').val(data.unit_id);
+                $('#price_id').val(data.id); $('#price_fruit_id').val(data.fruit_id).trigger('change'); $('#price_unit_id').val(data.unit_id);
                 syncBoxOptions(data.box_configuration_id || '');
                 $('#price_amount').val(data.price); $('#price_currency').val(data.currency);
                 $('#price_is_active').val(data.is_active ? '1' : '0');

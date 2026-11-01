@@ -1,0 +1,124 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\Fruit;
+use App\Models\Order;
+use App\Models\OrderItem;
+use App\Models\Shop;
+use Tests\TestCase;
+
+class OrderPdfTemplatesTest extends TestCase
+{
+    public function test_shop_picking_sheet_uses_the_shop_order_and_leaves_warehouse_weight_blank(): void
+    {
+        [$shop, $order, $fruit, $item] = $this->makeOrderData();
+        $item->warehouse_weight_kg = '12.345';
+
+        $html = view('test3_1st', [
+            'shop' => $shop,
+            'order' => $order,
+            'itemsByFruit' => collect([$fruit->id => $item]),
+            'fruitRows' => collect([collect([$fruit, null, null, null])]),
+        ])->render();
+
+        $this->assertStringContainsString('TEST-SHOP', $html);
+        $this->assertStringContainsString('AGUACATE C', $html);
+        $this->assertStringContainsString('WEIGHT KG', $html);
+        $this->assertStringContainsString('CAJAS', $html);
+        $this->assertStringContainsString('3', $html);
+        $this->assertStringNotContainsString('12.345', $html);
+    }
+
+    public function test_final_warehouse_pdf_uses_the_saved_weight_and_order_values(): void
+    {
+        [$shop, $order, , $item] = $this->makeOrderData();
+        $item->warehouse_weight_kg = '12.345';
+        $order->setRelation('items', collect([$item]));
+
+        $html = view('test2', [
+            'shop' => $shop,
+            'order' => $order,
+            'currency' => 'EUR',
+        ])->render();
+
+        $this->assertStringContainsString('TEST-SHOP', $html);
+        $this->assertStringContainsString('AGUACATE C', $html);
+        $this->assertStringContainsString('12.345', $html);
+        $this->assertStringContainsString('20.10', $html);
+        $this->assertStringContainsString('EUR', $html);
+    }
+
+    public function test_consolidated_warehouse_pdf_shows_the_combined_quantity_and_saved_weight(): void
+    {
+        $html = view('backend.pages.orders.warehouse-pdf', [
+            'date' => '2026-10-07',
+            'warehouseName' => 'Central Warehouse',
+            'orders' => collect([new Order, new Order]),
+            'items' => collect([
+                [
+                    'name' => 'AGUACATE C',
+                    'quantity' => 12,
+                    'shop_count' => 2,
+                    'weight' => 47.250,
+                ],
+            ]),
+            'pdfItems' => collect([
+                [
+                    'quantity' => 12,
+                    'name' => 'AGUACATE C',
+                    'box_name' => 'Caja estándar',
+                    'box_weight' => 4,
+                    'total_weight' => 47.250,
+                    'tare' => 1.250,
+                    'net_weight' => 46.000,
+                    'price' => 6.70,
+                    'total' => 308.20,
+                ],
+            ]),
+            'allWeightsSaved' => true,
+        ])->render();
+
+        $this->assertStringContainsString('BISMILLAHIR RAHMANIR RAHEEM', $html);
+        $this->assertStringContainsString('WAREHOUSE : Central Warehouse', $html);
+        $this->assertStringContainsString('T KILO', $html);
+        $this->assertStringContainsString('TARA', $html);
+        $this->assertStringContainsString('AGUACATE C', $html);
+        $this->assertStringContainsString('12', $html);
+        $this->assertStringContainsString('47.250', $html);
+        $this->assertStringContainsString('1.250', $html);
+        $this->assertStringContainsString('46.000', $html);
+        $this->assertStringContainsString('2', $html);
+        $this->assertStringContainsString('6.70', $html);
+        $this->assertStringContainsString('308.20', $html);
+        $this->assertStringStartsWith('%PDF', \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html)->setPaper('a4')->output());
+    }
+
+    private function makeOrderData(): array
+    {
+        $shop = new Shop;
+        $shop->name = 'Test Shop';
+        $shop->code = 'TEST-SHOP';
+
+        $order = new Order;
+        $order->order_date = '2026-10-07';
+        $order->id = 17;
+
+        $fruit = new Fruit;
+        $fruit->id = 42;
+        $fruit->name = 'AGUACATE C';
+        $fruit->display_name = 'AGUACATE C';
+
+        $item = new OrderItem([
+            'quantity' => 3,
+            'unit_weight_kg' => 4,
+            'converted_kg' => 12,
+            'warehouse_weight_kg' => null,
+            'unit_price' => 6.70,
+            'line_total' => 20.10,
+        ]);
+        $item->setRelation('fruit', $fruit);
+
+        return [$shop, $order, $fruit, $item];
+    }
+}

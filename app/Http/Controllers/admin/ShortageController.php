@@ -22,7 +22,7 @@ class ShortageController extends Controller
             ->whereIn('orders.status', ['submitted', 'prepared', 'ready'])
             ->whereDate('orders.order_date', $date)
             ->select('order_items.fruit_id')
-            ->selectRaw('SUM(COALESCE(order_items.converted_kg, order_items.quantity)) AS demand_kg')
+            ->selectRaw('SUM(COALESCE(order_items.warehouse_weight_kg, order_items.converted_kg, order_items.quantity)) AS demand_kg')
             ->groupBy('order_items.fruit_id')
             ->get()
             ->keyBy('fruit_id');

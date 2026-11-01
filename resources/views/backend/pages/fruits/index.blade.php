@@ -70,7 +70,8 @@
                     <div class="form-row">
                         <div class="form-group col-md-4">
                             <label for="fruit_code">Code</label>
-                            <input type="text" class="form-control" id="fruit_code" name="code" required maxlength="80">
+                            <input type="text" class="form-control" id="fruit_code" readonly placeholder="Generated automatically">
+                            <small class="form-text text-muted">A unique number is assigned automatically when saved.</small>
                         </div>
                         <div class="form-group col-md-4">
                             <label for="fruit_category_id">Category</label>

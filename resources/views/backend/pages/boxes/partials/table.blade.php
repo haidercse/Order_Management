@@ -7,6 +7,7 @@
                 <th>Configuration</th>
                 <th>Code</th>
                 <th>Weight (kg)</th>
+                <th>Tare / box (kg)</th>
                 <th>Default</th>
                 <th>Status</th>
                 <th>Actions</th>
@@ -20,6 +21,7 @@
                     <td>{{ $box->name }}</td>
                     <td><strong>{{ $box->code }}</strong></td>
                     <td>{{ number_format((float) $box->weight_kg, 3) }}</td>
+                    <td>{{ number_format((float) $box->tare_weight_kg, 3) }}</td>
                     <td><span class="badge badge-{{ $box->is_default ? 'primary' : 'light' }}">{{ $box->is_default ? 'Default' : '—' }}</span></td>
                     <td><span class="badge badge-{{ $box->status ? 'success' : 'secondary' }}">{{ $box->status ? 'Active' : 'Inactive' }}</span></td>
                     <td class="text-nowrap">
@@ -28,7 +30,7 @@
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="8" class="text-center py-4">No box configurations found.</td></tr>
+                <tr><td colspan="9" class="text-center py-4">No box configurations found.</td></tr>
             @endforelse
         </tbody>
     </table>

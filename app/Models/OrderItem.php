@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -16,7 +17,9 @@ class OrderItem extends Model
         'box_configuration_id',
         'quantity',
         'unit_weight_kg',
+        'unit_tare_kg',
         'converted_kg',
+        'warehouse_weight_kg',
         'unit_price',
         'line_total',
         'notes',
@@ -25,7 +28,9 @@ class OrderItem extends Model
     protected $casts = [
         'quantity' => 'decimal:3',
         'unit_weight_kg' => 'decimal:3',
+        'unit_tare_kg' => 'decimal:3',
         'converted_kg' => 'decimal:3',
+        'warehouse_weight_kg' => 'decimal:3',
         'unit_price' => 'decimal:2',
         'line_total' => 'decimal:2',
     ];

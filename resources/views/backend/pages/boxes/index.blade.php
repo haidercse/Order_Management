@@ -23,7 +23,7 @@
                 <div class="col-md-3 mb-2 mb-md-0">
                     <select id="boxFruitFilter" class="form-control">
                         <option value="">All fruits</option>
-                        @foreach ($fruits as $fruit)<option value="{{ $fruit->id }}">{{ $fruit->display_name ?: $fruit->name }}</option>@endforeach
+                        @foreach ($fruits as $fruit)<option value="{{ $fruit->id }}">{{ $fruit->display_name ?: $fruit->name }} ({{ $fruit->code }})</option>@endforeach
                     </select>
                 </div>
                 <div class="col-md-2 mb-2 mb-md-0"><select id="boxStatusFilter" class="form-control"><option value="">All statuses</option><option value="1">Active</option><option value="0">Inactive</option></select></div>
@@ -59,10 +59,12 @@
                     <div class="form-group col-md-5"><label for="box_code">Code</label><input type="text" class="form-control" id="box_code" name="code" maxlength="50" required></div>
                 </div>
                 <div class="form-row">
-                    <div class="form-group col-md-4"><label for="box_weight_kg">Weight (kg)</label><input type="number" class="form-control" id="box_weight_kg" name="weight_kg" min="0.001" step="0.001" required></div>
-                    <div class="form-group col-md-4"><label for="box_is_default">Default configuration</label><select class="form-control" id="box_is_default" name="is_default" required><option value="0">No</option><option value="1">Yes</option></select></div>
-                    <div class="form-group col-md-4"><label for="box_status">Status</label><select class="form-control" id="box_status" name="status" required><option value="1">Active</option><option value="0">Inactive</option></select></div>
+                    <div class="form-group col-md-3"><label for="box_weight_kg">Weight (kg)</label><input type="number" class="form-control" id="box_weight_kg" name="weight_kg" min="0.001" step="0.001" required></div>
+                    <div class="form-group col-md-3"><label for="box_tare_weight_kg">Tare / box (kg)</label><input type="number" class="form-control" id="box_tare_weight_kg" name="tare_weight_kg" min="0" step="0.001" value="0" required></div>
+                    <div class="form-group col-md-3"><label for="box_is_default">Default configuration</label><select class="form-control" id="box_is_default" name="is_default" required><option value="0">No</option><option value="1">Yes</option></select></div>
+                    <div class="form-group col-md-3"><label for="box_status">Status</label><select class="form-control" id="box_status" name="status" required><option value="1">Active</option><option value="0">Inactive</option></select></div>
                 </div>
+                <small class="form-text text-muted mb-3">Tare is the empty package weight per box and is subtracted from the measured total to calculate net weight.</small>
                 <small class="form-text text-muted mb-3">Choosing this as the default will clear the default flag from the fruit's other box configurations.</small>
                 <button type="submit" class="btn btn-success btn-block" id="saveBoxBtn">Save Configuration</button>
             </form>
@@ -77,6 +79,17 @@ $(function () {
     const indexUrl = @json(route('admin.boxes.index'));
     const storeUrl = @json(route('admin.boxes.store'));
     $.ajaxSetup({ headers: { 'X-CSRF-TOKEN': @json(csrf_token()) } });
+    $('#boxFruitFilter').select2({
+        placeholder: 'Search and select a fruit',
+        allowClear: true,
+        width: '100%'
+    });
+    $('#box_fruit_id').select2({
+        dropdownParent: $('#boxModal'),
+        placeholder: 'Search fruit name or code',
+        allowClear: true,
+        width: '100%'
+    });
     function alertBox(type, message) {
         $('<div>', { class: `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show` }).text(message)
             .append($('<button>', { type: 'button', class: 'close', 'data-dismiss': 'alert' }).append('<span>&times;</span>')).appendTo('#boxAlert');
@@ -96,9 +109,13 @@ $(function () {
     let searchTimer;
     $('#boxSearch').on('input', function () { clearTimeout(searchTimer); searchTimer = setTimeout(() => loadBoxes(), 300); });
     $('#boxFruitFilter, #boxStatusFilter').on('change', () => loadBoxes());
-    $('#resetBoxFilter').on('click', function () { $('#boxSearch, #boxFruitFilter, #boxStatusFilter').val(''); loadBoxes(); });
+    $('#resetBoxFilter').on('click', function () {
+        $('#boxSearch, #boxStatusFilter').val('');
+        $('#boxFruitFilter').val('').trigger('change');
+    });
     $('#addBoxBtn').on('click', function () {
-        $('#boxForm')[0].reset(); $('#box_id').val(''); $('#box_is_default').val('0'); $('#box_status').val('1');
+        $('#boxForm')[0].reset(); $('#box_id').val(''); $('#box_fruit_id').val('').trigger('change');
+        $('#box_is_default').val('0'); $('#box_status').val('1');
         $('#boxModalTitle').text('Add Box Configuration'); $('#saveBoxBtn').text('Save Configuration'); $('#boxModal').modal('show');
     });
     $('#boxForm').on('submit', function (event) {
@@ -112,8 +129,8 @@ $(function () {
     $(document).on('click', '.edit-box', function () {
         $.get(`/admin/boxes/edit/${$(this).data('id')}`)
             .done(({ data }) => {
-                $('#box_id').val(data.id); $('#box_fruit_id').val(data.fruit_id); $('#box_name').val(data.name);
-                $('#box_code').val(data.code); $('#box_weight_kg').val(data.weight_kg);
+                $('#box_id').val(data.id); $('#box_fruit_id').val(data.fruit_id).trigger('change'); $('#box_name').val(data.name);
+                $('#box_code').val(data.code); $('#box_weight_kg').val(data.weight_kg); $('#box_tare_weight_kg').val(data.tare_weight_kg);
                 $('#box_is_default').val(data.is_default ? '1' : '0'); $('#box_status').val(data.status ? '1' : '0');
                 $('#boxModalTitle').text('Edit Box Configuration'); $('#saveBoxBtn').text('Update Configuration'); $('#boxModal').modal('show');
             })

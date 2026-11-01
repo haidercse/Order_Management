@@ -48,6 +48,7 @@
         .fruit-card { display: flex; min-width: 0; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: #fff; }
         .fruit-info { flex: 1; min-width: 0; }
         .fruit-name { display: block; overflow-wrap: anywhere; font-weight: 800; }
+        .fruit-unavailable { color: var(--muted); font-size: 12px; }
         .fruit-card select { width: 100%; max-width: 170px; min-height: 38px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: #fff; font-size: 13px; }
         .fruit-input { width: 92px; min-height: 44px; text-align: center; font-size: 17px; font-weight: 800; }
         .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; clip-path: inset(50%); }
@@ -109,7 +110,9 @@
     <div id="feedback" aria-live="polite"></div>
 
     @if (!$catalog->count())
-        <div class="banner warning">No fruits with active Caja prices are available for {{ $orderDate }}. Please contact the warehouse.</div>
+        <div class="banner warning">No active fruits configured for Caja orders are available. Please contact the warehouse.</div>
+    @elseif ($unavailableFruitCount > 0)
+        <div class="banner warning">{{ $unavailableFruitCount }} fruit(s) are shown but cannot be ordered until the warehouse adds an active Caja configuration and price for {{ $orderDate }}.</div>
     @endif
 
     <section class="card">
@@ -237,6 +240,14 @@
         document.getElementById('emptyLetter').hidden = fruits.length > 0;
         list.innerHTML = fruits.map(fruit => {
             const unit = cajaFor(fruit);
+            if (!unit) {
+                return `<article class="fruit-card">
+                    <div class="fruit-info">
+                        <span class="fruit-name">${escapeHtml(fruit.name)}</span>
+                        <span class="fruit-unavailable">Not orderable yet — warehouse setup required</span>
+                    </div>
+                </article>`;
+            }
             const selectedBox = selectedBoxFor(fruit);
             const quantity = quantities.get(Number(fruit.id)) || '';
             const choices = unit.boxes.length > 1

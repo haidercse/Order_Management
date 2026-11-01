@@ -142,16 +142,17 @@ class FruitBoxConfigurationController extends Controller
                     ->ignore($box?->id),
             ],
             'weight_kg' => ['required', 'numeric', 'decimal:0,3', 'gt:0'],
+            'tare_weight_kg' => ['required', 'numeric', 'decimal:0,3', 'min:0', 'lte:weight_kg'],
             'is_default' => ['required', 'boolean'],
             'status' => ['required', 'boolean'],
         ]);
 
         Validator::make($data, [])->after(function ($validator) use ($data, $box): void {
-            if ($data['is_default'] && !$data['status']) {
+            if ($data['is_default'] && ! $data['status']) {
                 $validator->errors()->add('is_default', 'A default box configuration must be active.');
             }
 
-            if (!$box) {
+            if (! $box) {
                 return;
             }
 

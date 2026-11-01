@@ -25,14 +25,14 @@ class ReportController extends Controller
         $data = $this->reportData($this->reportDate($request));
 
         return Pdf::loadView('backend.pages.reports.pdf', $data)
-            ->setPaper('a4', 'landscape')
-            ->download('daily-warehouse-report-' . $data['date'] . '.pdf');
+            ->setPaper('a4')
+            ->download('daily-warehouse-report-'.$data['date'].'.pdf');
     }
 
     public function excel(Request $request)
     {
         $data = $this->reportData($this->reportDate($request));
-        $filename = 'daily-warehouse-report-' . $data['date'] . '.csv';
+        $filename = 'daily-warehouse-report-'.$data['date'].'.csv';
 
         return response()->streamDownload(function () use ($data): void {
             $output = fopen('php://output', 'w');
@@ -108,7 +108,7 @@ class ReportController extends Controller
             ->whereDate('orders.order_date', $date)
             ->whereNotNull('orders.submitted_at')
             ->select('order_items.fruit_id')
-            ->selectRaw('SUM(COALESCE(order_items.converted_kg, order_items.quantity)) AS demand_kg')
+            ->selectRaw('SUM(COALESCE(order_items.warehouse_weight_kg, order_items.converted_kg, order_items.quantity)) AS demand_kg')
             ->selectRaw("SUM(CASE WHEN units.code = 'BOX' THEN order_items.quantity ELSE 0 END) AS demand_boxes")
             ->selectRaw('SUM(COALESCE(order_items.line_total, order_items.quantity * order_items.unit_price, 0)) AS value')
             ->groupBy('order_items.fruit_id')
@@ -138,7 +138,7 @@ class ReportController extends Controller
 
         $items = $demandRows->map(function ($row) use ($fruits, $stockByFruit): ?array {
             $fruit = $fruits->get($row->fruit_id);
-            if (!$fruit) {
+            if (! $fruit) {
                 return null;
             }
 
@@ -149,8 +149,7 @@ class ReportController extends Controller
             $availableKg = max(0, (float) ($stockByFruit[$fruit->id] ?? 0));
             $kgPrice = $fruit->prices->first(fn ($price) => $price->unit?->code === 'KG' && $price->box_configuration_id === null);
             $boxPrice = $box
-                ? $fruit->prices->first(fn ($price) =>
-                    $price->unit?->code === 'BOX'
+                ? $fruit->prices->first(fn ($price) => $price->unit?->code === 'BOX'
                     && (int) $price->box_configuration_id === (int) $box->id
                 )
                 : null;
@@ -210,6 +209,6 @@ class ReportController extends Controller
     {
         $value = $value ?? '';
 
-        return preg_match('/^[\s\x00-\x1F]*[=+\-@]/u', $value) ? "'" . $value : $value;
+        return preg_match('/^[\s\x00-\x1F]*[=+\-@]/u', $value) ? "'".$value : $value;
     }
 }

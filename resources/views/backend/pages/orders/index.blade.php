@@ -6,14 +6,17 @@
 <div class="container-fluid my-4">
     <div class="d-flex flex-wrap align-items-center justify-content-between mb-4">
         <div><h3 class="mb-1 text-primary font-weight-bold">Shop Orders</h3><p class="text-muted mb-0">Review submitted orders and advance warehouse fulfilment status.</p></div>
-        <a href="{{ route('admin.shortage.index') }}" class="btn btn-outline-warning mt-2 mt-md-0"><i class="fa fa-exclamation-triangle"></i> Stock shortages</a>
+        <div class="mt-2 mt-md-0">
+            <button type="button" class="btn btn-primary" id="warehouseSheetBtn"><i class="fa fa-balance-scale"></i> All Shops Warehouse Sheet</button>
+            <a href="{{ route('admin.shortage.index') }}" class="btn btn-outline-warning"><i class="fa fa-exclamation-triangle"></i> Stock shortages</a>
+        </div>
     </div>
     <div id="ordersAlert"></div>
     <div class="card shadow-sm mb-3">
         <div class="card-body">
             <div class="row">
                 <div class="col-md-5 mb-2 mb-md-0"><input type="search" id="orderSearch" class="form-control" value="{{ $filters['search'] ?? '' }}" placeholder="Search shop name or code"></div>
-                <div class="col-md-3 mb-2 mb-md-0"><input type="date" id="orderDateFilter" class="form-control" value="{{ $filters['date'] ?? today()->toDateString() }}"></div>
+                <div class="col-md-3 mb-2 mb-md-0"><input type="date" id="orderDateFilter" class="form-control" value="{{ $filters['date'] ?? $defaultDate }}"></div>
                 <div class="col-md-2 mb-2 mb-md-0">
                     <select id="orderStatusFilter" class="form-control">
                         <option value="">All statuses</option>
@@ -44,7 +47,9 @@
 <script>
 $(function () {
     const indexUrl = @json(route('admin.orders.index'));
+    const warehouseSheetUrl = @json(route('admin.orders.warehouse-sheet'));
     $.ajaxSetup({ headers: { 'X-CSRF-TOKEN': @json(csrf_token()) } });
+    let activeOrderId = null;
     function alertOrders(type, message) {
         $('<div>', { class: `alert alert-${type === 'success' ? 'success' : 'danger'} alert-dismissible fade show` }).text(message)
             .append($('<button>', { type: 'button', class: 'close', 'data-dismiss': 'alert' }).append('<span>&times;</span>')).appendTo('#ordersAlert');
@@ -64,13 +69,33 @@ $(function () {
     let searchTimer;
     $('#orderSearch').on('input', function () { clearTimeout(searchTimer); searchTimer = setTimeout(() => loadOrders(), 300); });
     $('#orderDateFilter, #orderStatusFilter').on('change', () => loadOrders());
+    $('#warehouseSheetBtn').on('click', function () {
+        const date = $('#orderDateFilter').val();
+        const query = date ? `?date=${encodeURIComponent(date)}` : '';
+        window.location.assign(`${warehouseSheetUrl}${query}`);
+    });
     $('#resetOrderFilter').on('click', function () {
         $('#orderSearch').val(''); $('#orderDateFilter').val(''); $('#orderStatusFilter').val(''); loadOrders();
     });
-    $(document).on('click', '.view-order', function () {
-        $.get(`/admin/orders/${$(this).data('id')}`)
+    function loadOrderDetails(id) {
+        activeOrderId = id;
+        $.get(`/admin/orders/${id}`)
             .done(response => { $('#orderDetailsContent').html(response.html); $('#orderDetailsModal').modal('show'); })
             .fail(xhr => requestError(xhr, 'Unable to load order details.'));
+    }
+    $(document).on('click', '.view-order', function () { loadOrderDetails($(this).data('id')); });
+    $(document).on('submit', '#orderWeightsForm', function (event) {
+        event.preventDefault();
+        const form = $(this);
+        const button = form.find('[type="submit"]').prop('disabled', true);
+        $.post(form.attr('action'), form.serialize())
+            .done(response => {
+                alertOrders('success', response.message);
+                loadOrderDetails(activeOrderId);
+                loadOrders();
+            })
+            .fail(xhr => requestError(xhr, 'Unable to save warehouse weights.'))
+            .always(() => button.prop('disabled', false));
     });
     $(document).on('click', '.advance-order', function () {
         const button = $(this); const id = button.data('id'); const status = button.data('status');

@@ -5,9 +5,13 @@ namespace App\Http\Controllers\admin;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Fruit;
+use App\Models\FruitBoxConfiguration;
+use App\Models\FruitPrice;
 use App\Models\Unit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class FruitController extends Controller
@@ -54,11 +58,54 @@ class FruitController extends Controller
 
     public function store(Request $request)
     {
-        $fruit = Fruit::create($this->validatedData($request));
+        $fruit = DB::transaction(function () use ($request): Fruit {
+            $fruit = Fruit::create([
+                ...$this->validatedData($request),
+                'code' => 'TEMP-'.Str::uuid(),
+            ]);
+
+            $code = 1_000_000_000_000 + $fruit->id;
+            while (Fruit::query()->where('code', (string) $code)->exists()) {
+                $code += 1_000_000_000_000;
+            }
+
+            $fruit->update(['code' => (string) $code]);
+
+            if ($fruit->allow_box) {
+                $boxUnit = Unit::query()
+                    ->where('code', 'BOX')
+                    ->where('is_order_unit', true)
+                    ->firstOrFail();
+
+                $box = FruitBoxConfiguration::create([
+                    'fruit_id' => $fruit->id,
+                    'name' => 'Caja estándar',
+                    'code' => 'STD',
+                    'weight_kg' => 10,
+                    'tare_weight_kg' => 0,
+                    'is_default' => true,
+                    'status' => true,
+                ]);
+
+                FruitPrice::create([
+                    'fruit_id' => $fruit->id,
+                    'unit_id' => $boxUnit->id,
+                    'box_configuration_id' => $box->id,
+                    'price' => 0,
+                    'currency' => 'EUR',
+                    'effective_from' => today()->toDateString(),
+                    'is_active' => false,
+                ]);
+            }
+
+            return $fruit;
+        });
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Fruit created successfully.',
+            'message' => $fruit->allow_box
+                ? 'Fruit created with a standard 10 kg box and an inactive price placeholder. Set the actual price before enabling orders.'
+                : 'Fruit created successfully.',
             'data' => $fruit,
         ]);
     }
@@ -74,7 +121,7 @@ class FruitController extends Controller
     public function update(Request $request, int $id)
     {
         $fruit = Fruit::findOrFail($id);
-        $fruit->update($this->validatedData($request, $fruit));
+        $fruit->update($this->validatedData($request));
 
         return response()->json([
             'status' => 'success',
@@ -105,16 +152,10 @@ class FruitController extends Controller
         ]);
     }
 
-    private function validatedData(Request $request, ?Fruit $fruit = null): array
+    private function validatedData(Request $request): array
     {
         $data = $request->validate([
             'category_id' => ['required', 'integer', 'exists:categories,id'],
-            'code' => [
-                'required',
-                'string',
-                'max:80',
-                Rule::unique('fruits', 'code')->ignore($fruit?->id),
-            ],
             'name' => ['required', 'string', 'max:255'],
             'display_name' => ['nullable', 'string', 'max:255'],
             'default_unit_id' => [
@@ -130,14 +171,14 @@ class FruitController extends Controller
         ]);
 
         Validator::make($data, [])->after(function ($validator) use ($data): void {
-            if (!$data['allow_kg'] && !$data['allow_box']) {
+            if (! $data['allow_kg'] && ! $data['allow_box']) {
                 $validator->errors()->add('allow_kg', 'At least one order unit must be enabled.');
             }
 
             $unit = Unit::find($data['default_unit_id']);
-            if ($unit?->is_weight_unit && !$data['allow_kg']) {
+            if ($unit?->is_weight_unit && ! $data['allow_kg']) {
                 $validator->errors()->add('default_unit_id', 'Enable kilogram orders or choose a different default unit.');
-            } elseif ($unit?->code === 'BOX' && !$data['allow_box']) {
+            } elseif ($unit?->code === 'BOX' && ! $data['allow_box']) {
                 $validator->errors()->add('default_unit_id', 'Enable box orders or choose a different default unit.');
             }
         })->validate();

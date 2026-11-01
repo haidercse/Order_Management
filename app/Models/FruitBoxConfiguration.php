@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -15,12 +16,14 @@ class FruitBoxConfiguration extends Model
         'name',
         'code',
         'weight_kg',
+        'tare_weight_kg',
         'is_default',
         'status',
     ];
 
     protected $casts = [
         'weight_kg' => 'decimal:3',
+        'tare_weight_kg' => 'decimal:3',
         'is_default' => 'boolean',
         'status' => 'boolean',
     ];
