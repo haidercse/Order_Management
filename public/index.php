@@ -1,5 +1,6 @@
 <?php
-
+phpinfo(); 
+return false;
 use Illuminate\Foundation\Application;
 use Illuminate\Http\Request;
 
