@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\Shop;
 use App\Models\SystemSetting;
 use App\Models\Unit;
+use App\Support\ShopOrderHistory;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
@@ -16,7 +17,7 @@ use Illuminate\Validation\ValidationException;
 
 class ShopOrderController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, ShopOrderHistory $orderHistory)
     {
         $user = $request->user();
         abort_unless($user->hasRole('shop-manager') && $user->shop_id, 403);
@@ -26,6 +27,8 @@ class ShopOrderController extends Controller
             ->where('status', 'active')
             ->firstOrFail();
 
+        [$historyFrom, $historyTo, $historyPreset] = $this->historyDateRange($request, $orderHistory);
+        $historyOrders = $orderHistory->forShopBetween($shop, $historyFrom, $historyTo)->get();
         $orderDate = $this->deliveryDate();
         $order = Order::query()
             ->with(['items.fruit', 'items.unit', 'items.boxConfiguration'])
@@ -98,7 +101,68 @@ class ShopOrderController extends Controller
 
         $unavailableFruitCount = $catalog->where('can_order', false)->count();
 
-        return view('shop.orders.index', compact('shop', 'order', 'orderDate', 'catalog', 'initialItems', 'unavailableFruitCount'));
+        return view('shop.orders.index', compact(
+            'shop',
+            'order',
+            'orderDate',
+            'catalog',
+            'initialItems',
+            'unavailableFruitCount',
+            'historyFrom',
+            'historyTo',
+            'historyPreset',
+            'historyOrders'
+        ));
+    }
+
+    public function downloadHistoryPdf(Request $request, ShopOrderHistory $orderHistory)
+    {
+        $user = $request->user();
+        abort_unless($user->hasRole('shop-manager') && $user->shop_id, 403);
+
+        $shop = Shop::query()
+            ->whereKey($user->shop_id)
+            ->where('status', 'active')
+            ->firstOrFail();
+
+        [$from, $to] = $this->historyDateRange($request, $orderHistory);
+        $orders = $orderHistory->forShopBetween($shop, $from, $to)->get();
+
+        return Pdf::loadView('shop.orders.history-pdf', compact('shop', 'orders', 'from', 'to'))
+            ->setPaper('a4')
+            ->download("shop-order-history-{$from->toDateString()}-to-{$to->toDateString()}.pdf");
+    }
+
+    public function historyData(Request $request, ShopOrderHistory $orderHistory)
+    {
+        $user = $request->user();
+        abort_unless($user->hasRole('shop-manager') && $user->shop_id, 403);
+
+        $shop = Shop::query()
+            ->whereKey($user->shop_id)
+            ->where('status', 'active')
+            ->firstOrFail();
+
+        [$from, $to, $preset] = $this->historyDateRange($request, $orderHistory);
+        $orders = $orderHistory->forShopBetween($shop, $from, $to)->get();
+
+        return response()->json([
+            'history' => $preset,
+            'from' => $from->toDateString(),
+            'to' => $to->toDateString(),
+            'from_label' => $from->format('d M Y'),
+            'to_label' => $to->format('d M Y'),
+            'order_count' => $orders->count(),
+            'orders' => $orders->map(fn (Order $order) => [
+                'id' => $order->id,
+                'date' => $order->order_date->format('d M Y'),
+                'status' => ucfirst($order->status),
+                'items' => $order->items->map(fn ($item) => [
+                    'fruit' => $item->fruit->display_name ?: $item->fruit->name,
+                    'quantity' => (int) $item->quantity,
+                ])->values(),
+            ])->values(),
+        ]);
     }
 
     public function downloadPdf(Request $request, int $order)
@@ -117,9 +181,10 @@ class ShopOrderController extends Controller
             ->firstOrFail();
 
         $itemsByFruit = $order->items->keyBy('fruit_id');
-        $fruitRows = Fruit::query()
-            ->orderBy('name')
-            ->get()
+        $fruitRows = $order->items
+            ->map(fn ($item) => $item->fruit)
+            ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
+            ->values()
             ->chunk(4)
             ->map(fn ($fruits) => $fruits->pad(4, null));
 
@@ -295,5 +360,22 @@ class ShopOrderController extends Controller
         $timezone = SystemSetting::query()->where('key', 'timezone')->value('value') ?: config('app.timezone');
 
         return CarbonImmutable::today($timezone)->addDays(max(1, $days))->toDateString();
+    }
+
+    /**
+     * @return array{0: CarbonImmutable, 1: CarbonImmutable, 2: string}
+     */
+    private function historyDateRange(Request $request, ShopOrderHistory $orderHistory): array
+    {
+        $filters = $request->validate([
+            'history' => ['nullable', 'in:today,yesterday,last_7_days,last_month,custom'],
+            'from' => ['required_if:history,custom', 'nullable', 'date_format:Y-m-d'],
+            'to' => ['required_if:history,custom', 'nullable', 'date_format:Y-m-d'],
+        ]);
+        $preset = $filters['history'] ?? 'last_7_days';
+        $timezone = SystemSetting::query()->where('key', 'timezone')->value('value') ?: config('app.timezone');
+        [$from, $to] = $orderHistory->dateRange($preset, $filters['from'] ?? null, $filters['to'] ?? null, $timezone);
+
+        return [$from, $to, $preset];
     }
 }

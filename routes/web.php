@@ -51,6 +51,8 @@ Route::middleware('auth')->group(function () {
 
 Route::middleware(['auth', 'password.change.required', 'role:shop-manager'])->prefix('shop')->name('shop.')->group(function () {
     Route::get('/orders', [ShopOrderController::class, 'index'])->name('orders.index');
+    Route::get('/orders/history/data', [ShopOrderController::class, 'historyData'])->name('orders.history.data');
+    Route::get('/orders/history/download', [ShopOrderController::class, 'downloadHistoryPdf'])->name('orders.history.pdf');
     Route::post('/orders/draft', [ShopOrderController::class, 'saveDraft'])->name('orders.draft');
     Route::post('/orders/submit', [ShopOrderController::class, 'submit'])->name('orders.submit');
     Route::get('/orders/{order}/pdf', [ShopOrderController::class, 'downloadPdf'])->name('orders.pdf');

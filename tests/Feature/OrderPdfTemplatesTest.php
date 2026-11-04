@@ -6,6 +6,7 @@ use App\Models\Fruit;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Shop;
+use Carbon\CarbonImmutable;
 use Tests\TestCase;
 
 class OrderPdfTemplatesTest extends TestCase
@@ -28,6 +29,57 @@ class OrderPdfTemplatesTest extends TestCase
         $this->assertStringContainsString('CAJAS', $html);
         $this->assertStringContainsString('3', $html);
         $this->assertStringNotContainsString('12.345', $html);
+    }
+
+    public function test_shop_order_history_pdf_lists_ordered_fruit_and_selected_dates(): void
+    {
+        [$shop, $order, , $item] = $this->makeOrderData();
+        $order->status = 'submitted';
+        $order->setRelation('items', collect([$item]));
+
+        $html = view('shop.orders.history-pdf', [
+            'shop' => $shop,
+            'orders' => collect([$order]),
+            'from' => CarbonImmutable::parse('2026-10-01'),
+            'to' => CarbonImmutable::parse('2026-10-07'),
+        ])->render();
+
+        $this->assertStringContainsString('Shop Order History', $html);
+        $this->assertStringContainsString('01 Oct 2026', $html);
+        $this->assertStringContainsString('07 Oct 2026', $html);
+        $this->assertStringContainsString('AGUACATE C', $html);
+        $this->assertStringContainsString('3', $html);
+        $this->assertStringStartsWith('%PDF', \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html)->setPaper('a4')->output());
+    }
+
+    public function test_shop_order_page_places_history_table_and_download_inside_a_modal(): void
+    {
+        [$shop, $order, , $item] = $this->makeOrderData();
+        $order->status = 'submitted';
+        $order->submitted_at = '2026-10-07 10:30:00';
+        $order->setRelation('items', collect([$item]));
+
+        $html = view('shop.orders.index', [
+            'shop' => $shop,
+            'order' => $order,
+            'orderDate' => '2026-10-08',
+            'catalog' => collect(),
+            'initialItems' => collect(),
+            'unavailableFruitCount' => 0,
+            'historyFrom' => CarbonImmutable::parse('2026-10-01'),
+            'historyTo' => CarbonImmutable::parse('2026-10-07'),
+            'historyPreset' => 'custom',
+            'historyOrders' => collect([$order]),
+        ])->render();
+
+        $this->assertStringContainsString('<dialog class="order-history-dialog"', $html);
+        $this->assertStringContainsString('<th>Date</th>', $html);
+        $this->assertStringContainsString('<th>Order</th>', $html);
+        $this->assertStringContainsString('<th>Status</th>', $html);
+        $this->assertStringContainsString('<th>Fruit</th>', $html);
+        $this->assertStringContainsString('<th class="history-quantity">Cajas</th>', $html);
+        $this->assertStringContainsString('Download PDF', $html);
+        $this->assertStringContainsString('AGUACATE C', $html);
     }
 
     public function test_final_warehouse_pdf_uses_the_saved_weight_and_order_values(): void

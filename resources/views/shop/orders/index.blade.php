@@ -4,101 +4,13 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>FreshLink — Shop Order</title>
-    <style>
-        :root {
-            color-scheme: light;
-            --bg: #f4faf1;
-            --card: #fff;
-            --ink: #17301f;
-            --muted: #5f7565;
-            --line: #dbe8d5;
-            --green: #2f9e4f;
-            --green-dark: #1e7a38;
-            --green-light: #e2f4e5;
-            --orange: #ffb56b;
-            --orange-light: #fff0de;
-            --red: #c0392b;
-        }
-
-        * { box-sizing: border-box; }
-        body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.45 "Trebuchet MS", "Segoe UI", system-ui, sans-serif; }
-        button, input, select, textarea { color: inherit; font: inherit; }
-        .topbar { position: sticky; top: 0; z-index: 5; min-height: 64px; background: var(--green); border-bottom: 4px solid var(--orange); color: #fff; }
-        .topbar-inner { display: flex; min-height: 60px; align-items: center; gap: 12px; max-width: 980px; margin: auto; padding: 7px 16px; }
-        .brand { flex: 1; font-size: 18px; font-weight: 800; }
-        .brand small { display: block; font-size: 12px; font-weight: 500; opacity: .9; }
-        .page { width: min(980px, 100%); margin: 0 auto; padding: 20px 16px 40px; }
-        .card { margin-bottom: 16px; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); box-shadow: 0 4px 16px rgba(23, 48, 31, .04); }
-        h1, h2, p { margin-top: 0; }
-        h1 { margin-bottom: 5px; font-size: 24px; }
-        h2 { margin-bottom: 14px; font-size: 18px; }
-        .muted, .hint { color: var(--muted); }
-        .hint { font-size: 13px; }
-        .order-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-        .pill { display: inline-block; padding: 5px 11px; border-radius: 999px; background: var(--orange-light); color: #8c510c; font-size: 12px; font-weight: 800; }
-        .pill.prepared, .pill.ready { background: var(--green-light); color: var(--green-dark); }
-        .pill.sent { background: var(--green); color: #fff; }
-        .pill.draft { background: #eef1f4; color: #5d6875; }
-        .alphabet-nav { position: sticky; top: 64px; z-index: 4; display: flex; gap: 5px; overflow-x: auto; margin: -4px 0 16px; padding: 10px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255, 255, 255, .97); box-shadow: 0 4px 14px rgba(23, 48, 31, .08); scrollbar-width: thin; }
-        .letter-button { flex: 0 0 36px; min-height: 38px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: var(--green-dark); cursor: pointer; font-weight: 800; }
-        .letter-button.active { border-color: var(--green); background: var(--green); color: #fff; }
-        .letter-button:disabled { color: #aab6aa; cursor: default; opacity: .55; }
-        .fruit-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-        .fruit-card { display: flex; min-width: 0; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 11px; background: #fff; }
-        .fruit-info { flex: 1; min-width: 0; }
-        .fruit-name { display: block; overflow-wrap: anywhere; font-weight: 800; }
-        .fruit-unavailable { color: var(--muted); font-size: 12px; }
-        .fruit-card select { width: 100%; max-width: 170px; min-height: 38px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: #fff; font-size: 13px; }
-        .fruit-input { width: 92px; min-height: 44px; text-align: center; font-size: 17px; font-weight: 800; }
-        .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; clip-path: inset(50%); }
-        .btn { display: inline-flex; min-height: 42px; align-items: center; justify-content: center; padding: 9px 15px; border: 0; border-radius: 9px; background: var(--green); color: #fff; cursor: pointer; font-weight: 750; text-decoration: none; }
-        .btn:hover { background: var(--green-dark); color: #fff; }
-        .btn:disabled { cursor: not-allowed; opacity: .55; }
-        .btn.light { border: 1px solid currentColor; background: transparent; color: inherit; }
-        .btn.orange { background: var(--orange); color: #3b2400; }
-        .line-list { margin: 0; padding: 0; list-style: none; }
-        .order-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 9px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 11px; background: #fbfdf9; }
-        .preview-fruit { font-size: 15px; }
-        .preview-quantity { padding: 7px 13px; background: var(--green-light); color: var(--green-dark); font-size: 14px; }
-        label { display: block; margin-bottom: 5px; color: var(--muted); font-size: 12px; font-weight: 700; }
-        input, select, textarea { width: 100%; min-height: 42px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--card); }
-        input:focus, select:focus, textarea:focus, button:focus-visible, a:focus-visible { outline: 3px solid rgba(47, 158, 79, .25); outline-offset: 2px; }
-        .empty { padding: 26px 10px; color: var(--muted); text-align: center; }
-        .actions { display: flex; justify-content: flex-end; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
-        .banner { margin-bottom: 16px; padding: 12px 14px; border-left: 5px solid var(--green); border-radius: 9px; background: var(--green-light); }
-        .banner.error { border-color: var(--red); background: #fff0ed; color: #8d261e; }
-        .banner.warning { border-color: var(--orange); background: var(--orange-light); }
-        .notes { margin-top: 15px; }
-        .order-items { width: 100%; border-collapse: collapse; }
-        .order-items th, .order-items td { padding: 10px; border-bottom: 1px solid var(--line); text-align: left; }
-        .order-items th { color: var(--muted); font-size: 12px; text-transform: uppercase; }
-        .order-items td:last-child, .order-items th:last-child { text-align: right; }
-        .logout { min-height: 36px; padding: 6px 11px; background: var(--orange); color: #3b2400; }
-        .logout:hover { background: #ffa445; color: #3b2400; }
-        @media (max-width: 700px) {
-            .page { padding: 14px 12px 32px; }
-            .card { padding: 15px; }
-            .fruit-grid { grid-template-columns: 1fr; }
-            .order-line { gap: 8px; padding: 12px; }
-            .preview-fruit { font-size: 14px; }
-            .preview-quantity { flex: 0 0 auto; }
-            .table-wrap { overflow-x: auto; }
-        }
-        @media (max-width: 420px) {
-            h1 { font-size: 21px; }
-            .alphabet-nav { margin-right: -4px; margin-left: -4px; }
-            .fruit-card { flex-wrap: wrap; }
-            .fruit-card select { max-width: none; }
-            .fruit-card .btn { width: 100%; }
-            .actions .btn { width: 100%; }
-        }
-    </style>
+    <title>Dhaka Frutas — Shop Order</title>
+    <link rel="stylesheet" href="{{ asset('admin/assets/css/styles.css') }}">
 </head>
 <body>
 <header class="topbar">
     <div class="topbar-inner">
-        <div class="brand">FreshLink <small>{{ $shop->name }} · Shop order</small></div>
+        <div class="brand">Dhaka Frutas <small>{{ $shop->name }} · Shop order</small></div>
         <form method="POST" action="{{ route('shop.logout') }}">
             @csrf
             <button class="btn logout" type="submit">Log out</button>
@@ -115,11 +27,11 @@
         <div class="banner warning">{{ $unavailableFruitCount }} fruit(s) are shown but cannot be ordered until the warehouse adds an active Caja configuration and price for {{ $orderDate }}.</div>
     @endif
 
-    <section class="card">
+    <section class="card order-summary-card">
         <div class="order-meta">
             <div>
                 <h1>Order for {{ \Illuminate\Support\Carbon::parse($orderDate)->format('D, d M Y') }}</h1>
-                <p class="muted mb-0">Choose fruits by letter and enter the number of Cajas your shop needs.</p>
+                <p class="hint order-shop-hint">Your account only shows orders for {{ $shop->name }}.</p>
             </div>
             @if ($order)
                 <span class="pill {{ $order->status }}">{{ ucfirst($order->status) }}</span>
@@ -127,7 +39,12 @@
                 <span class="pill draft">Not submitted</span>
             @endif
         </div>
-        <p class="hint mt-3 mb-0">Your account only shows orders for {{ $shop->name }}. Other shops' orders are private.</p>
+        @if (!$order || $order->status === 'draft')
+            <div class="order-meta order-summary-selection">
+                <h2 class="mb-1">Choose your fruits</h2>
+                <span class="pill">{{ $catalog->count() }} fruits</span>
+            </div>
+        @endif
     </section>
 
     @if ($order && $order->status !== 'draft')
@@ -141,13 +58,20 @@
             </div>
             <div class="banner mt-3">Your order has been sent to the warehouse. Review the items below or download a copy for your records.</div>
             <div class="table-wrap">
-                <table class="order-items">
-                    <thead><tr><th>Fruit</th><th>Quantity</th></tr></thead>
+                <table class="order-items preview-order-items">
+                    <thead><tr><th colspan="2">Fruit / Cajas</th><th colspan="2">Fruit / Cajas</th></tr></thead>
                     <tbody>
-                        @foreach ($order->items as $item)
+                        @foreach ($order->items->chunk(2) as $items)
                             <tr>
-                                <td>{{ $item->fruit->display_name ?: $item->fruit->name }}</td>
-                                <td>{{ (int) $item->quantity }} Cajas</td>
+                                @foreach ($items as $item)
+                                    <td colspan="2">
+                                        <div class="preview-order-item">
+                                            <span class="fruit-name preview-fruit">{{ $item->fruit->display_name ?: $item->fruit->name }}</span>
+                                            <span class="pill preview-quantity">{{ (int) $item->quantity }} Cajas</span>
+                                        </div>
+                                    </td>
+                                @endforeach
+                                @if ($items->count() === 1)<td colspan="2"></td>@endif
                             </tr>
                         @endforeach
                     </tbody>
@@ -158,15 +82,6 @@
     @else
         <form id="orderForm">
             @csrf
-            <section class="card">
-                <div class="order-meta">
-                    <div>
-                        <h2 class="mb-1">Choose your fruits</h2>
-                        <p class="hint mb-0">Tap a letter to see fruits starting with it. All quantities are ordered in Caja.</p>
-                    </div>
-                    <span class="pill" id="fruitCount">{{ $catalog->count() }} fruits</span>
-                </div>
-            </section>
             <nav class="alphabet-nav" id="alphabetNav" aria-label="Filter fruits by first letter"></nav>
             <section class="card">
                 <div class="fruit-grid" id="fruitList"></div>
@@ -178,7 +93,12 @@
                     <div><h2 class="mb-1">Your order preview</h2><span class="hint">Your selected fruits and Caja amounts appear here as you enter them.</span></div>
                     <span class="pill" id="lineCount">0 items</span>
                 </div>
-                <ul class="line-list" id="orderLines"></ul>
+                <div class="table-wrap">
+                    <table class="order-items preview-order-items">
+                        <thead><tr><th colspan="2">Fruit / Cajas</th><th colspan="2">Fruit / Cajas</th></tr></thead>
+                        <tbody id="orderLines"></tbody>
+                    </table>
+                </div>
                 <div id="emptyOrder" class="empty">No fruits selected yet. Enter a Caja quantity beside a fruit above.</div>
                 <div class="notes">
                     <label for="orderNotes">Note for the warehouse (optional)</label>
@@ -193,6 +113,83 @@
             </section>
         </form>
     @endif
+
+    <section class="card order-history-launcher">
+        <div class="order-meta">
+            <div>
+                <h2 class="mb-1">Order history</h2>
+                <p class="hint mb-0" id="historyLauncherSummary">Showing {{ $historyFrom->format('d M Y') }} – {{ $historyTo->format('d M Y') }} · {{ $historyOrders->count() }} order{{ $historyOrders->count() === 1 ? '' : 's' }}</p>
+            </div>
+            <button class="btn" type="button" id="openOrderHistory">View order history</button>
+        </div>
+    </section>
+
+    <dialog class="order-history-dialog" id="orderHistoryModal" aria-labelledby="orderHistoryTitle">
+        <div class="order-history-modal">
+            <div class="order-meta order-history-heading">
+                <div>
+                    <h2 id="orderHistoryTitle" class="mb-1">Order history</h2>
+                    <p class="hint mb-0">Review or download submitted orders by date.</p>
+                </div>
+                <button class="btn light close-order-history" type="button" aria-label="Close order history">Close</button>
+            </div>
+
+            <nav class="history-filters" aria-label="Filter order history">
+                @foreach (['today' => 'Today', 'yesterday' => 'Yesterday', 'last_7_days' => 'Last 7 days', 'last_month' => 'Last month'] as $preset => $label)
+                    <a class="btn light {{ $historyPreset === $preset ? 'active' : '' }}" href="{{ route('shop.orders.index', ['history' => $preset]) }}" data-history-preset="{{ $preset }}" @if ($historyPreset === $preset) aria-current="date" @endif>{{ $label }}</a>
+                @endforeach
+            </nav>
+
+            <form class="history-date-form" method="GET" action="{{ route('shop.orders.index') }}" id="historyDateForm">
+                <input type="hidden" name="history" value="custom">
+                <div>
+                    <label for="historyFrom">From</label>
+                    <input id="historyFrom" name="from" type="date" value="{{ $historyFrom->toDateString() }}" required>
+                </div>
+                <div>
+                    <label for="historyTo">To</label>
+                    <input id="historyTo" name="to" type="date" value="{{ $historyTo->toDateString() }}" required>
+                </div>
+                <button class="btn light" type="submit">Show orders</button>
+                <a class="btn history-download" id="historyDownload" href="{{ route('shop.orders.history.pdf', ['history' => 'custom', 'from' => $historyFrom->toDateString(), 'to' => $historyTo->toDateString()]) }}">Download PDF</a>
+            </form>
+
+            <p class="hint history-result-summary" id="historyResultSummary" aria-live="polite">
+                {{ $historyFrom->format('d M Y') }} – {{ $historyTo->format('d M Y') }}
+                · {{ $historyOrders->count() }} order{{ $historyOrders->count() === 1 ? '' : 's' }}
+            </p>
+
+            <div class="banner error history-error" id="historyError" role="alert" hidden></div>
+            <div class="empty" id="historyEmpty" @if ($historyOrders->isNotEmpty()) hidden @endif>No submitted orders found for these dates.</div>
+            <div class="table-wrap history-table-wrap" id="historyTableWrap" @if ($historyOrders->isEmpty()) hidden @endif>
+                <table class="order-items history-table">
+                    <thead>
+                        <tr><th>Date</th><th>Order</th><th>Status</th><th>Fruit</th><th class="history-quantity">Cajas</th></tr>
+                    </thead>
+                    <tbody id="historyTableBody">
+                        @foreach ($historyOrders as $historyOrder)
+                            @forelse ($historyOrder->items as $item)
+                                <tr>
+                                    <td>{{ $historyOrder->order_date->format('d M Y') }}</td>
+                                    <td>#{{ $historyOrder->id }}</td>
+                                    <td>{{ ucfirst($historyOrder->status) }}</td>
+                                    <td>{{ $item->fruit->display_name ?: $item->fruit->name }}</td>
+                                    <td class="history-quantity">{{ (int) $item->quantity }}</td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td>{{ $historyOrder->order_date->format('d M Y') }}</td>
+                                    <td>#{{ $historyOrder->id }}</td>
+                                    <td>{{ ucfirst($historyOrder->status) }}</td>
+                                    <td colspan="2" class="muted">No fruit items</td>
+                                </tr>
+                            @endforelse
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </dialog>
 </main>
 
 <script>
@@ -201,6 +198,8 @@
     const initialItems = @json($initialItems);
     const draftUrl = @json(route('shop.orders.draft'));
     const submitUrl = @json(route('shop.orders.submit'));
+    const historyDataUrl = @json(route('shop.orders.history.data'));
+    const historyPdfUrl = @json(route('shop.orders.history.pdf'));
     const csrf = document.querySelector('meta[name="csrf-token"]').content;
     const quantities = new Map(initialItems.map(line => [Number(line.fruit_id), String(Math.trunc(Number(line.quantity)))]));
     const boxSelections = new Map(initialItems.map(line => [Number(line.fruit_id), Number(line.box_configuration_id)]));
@@ -272,12 +271,33 @@
         const lines = orderLines();
         document.getElementById('emptyOrder').hidden = lines.length > 0;
         document.getElementById('lineCount').textContent = `${lines.length} item${lines.length === 1 ? '' : 's'}`;
-        list.innerHTML = lines.map(({ fruit, quantity }) => {
-            return `<li class="order-line">
+        const itemMarkup = ({ fruit, quantity }) => `<td colspan="2">
+            <div class="preview-order-item">
                 <span class="fruit-name preview-fruit">${escapeHtml(fruit.name)}</span>
-                <span class="pill preview-quantity">${escapeHtml(quantity)} Cajas</span>
-            </li>`;
-        }).join('');
+                <div class="preview-controls">
+                    <button class="quantity-button" type="button" data-preview-action="decrease" data-fruit-id="${fruit.id}" aria-label="Decrease ${escapeHtml(fruit.name)} by one Caja">−</button>
+                    <span class="pill preview-quantity">${escapeHtml(quantity)} Cajas</span>
+                    <button class="quantity-button" type="button" data-preview-action="increase" data-fruit-id="${fruit.id}" aria-label="Increase ${escapeHtml(fruit.name)} by one Caja">+</button>
+                    <button class="quantity-button remove" type="button" data-preview-action="remove" data-fruit-id="${fruit.id}" aria-label="Remove ${escapeHtml(fruit.name)} from the order">Remove</button>
+                </div>
+            </div>
+        </td>`;
+        const rows = [];
+        for (let index = 0; index < lines.length; index += 2) {
+            rows.push(`<tr>${itemMarkup(lines[index])}${lines[index + 1] ? itemMarkup(lines[index + 1]) : '<td colspan="2"></td>'}</tr>`);
+        }
+        list.innerHTML = rows.join('');
+    }
+
+    function setQuantity(fruitId, quantity) {
+        if (quantity > 0) {
+            quantities.set(fruitId, String(quantity));
+        } else {
+            quantities.delete(fruitId);
+        }
+        const input = document.getElementById(`fruit-quantity-${fruitId}`);
+        if (input) input.value = quantity > 0 ? String(quantity) : '';
+        renderOrderPreview();
     }
 
     function showMessage(message, isError = false) {
@@ -370,19 +390,161 @@
         boxSelections.set(Number(select.dataset.boxChoice), Number(select.value));
         renderOrderPreview();
     });
+    document.getElementById('orderLines')?.addEventListener('click', event => {
+        const button = event.target.closest('[data-preview-action]');
+        if (!button) return;
+        const fruitId = Number(button.dataset.fruitId);
+        const quantity = Number(quantities.get(fruitId) || 0);
+        if (button.dataset.previewAction === 'increase') {
+            setQuantity(fruitId, quantity + 1);
+        } else if (button.dataset.previewAction === 'decrease') {
+            setQuantity(fruitId, quantity - 1);
+        } else if (button.dataset.previewAction === 'remove') {
+            setQuantity(fruitId, 0);
+        }
+    });
     document.getElementById('saveDraftBtn')?.addEventListener('click', () => postOrder(draftUrl, 'save'));
     document.getElementById('previewOrderBtn')?.addEventListener('click', () => {
         document.getElementById('orderPreview').scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     document.getElementById('downloadPdfBtn')?.addEventListener('click', () => postOrder(draftUrl, 'download'));
     document.getElementById('submitOrderBtn')?.addEventListener('click', () => {
-        if (window.confirm('Submit this order to the warehouse? It cannot be edited after submission.')) postOrder(submitUrl, 'submit');
+        if (window.confirm('এই অর্ডারটি গুদামে জমা দেবেন? একবার জমা দেওয়ার পর এটি আর দেওয়া করা যাবে না।')) postOrder(submitUrl, 'submit');
     });
 
     if (document.getElementById('orderLines')) {
         renderAlphabet();
         renderOrderPreview();
     }
+    const historyModal = document.getElementById('orderHistoryModal');
+    document.getElementById('openOrderHistory')?.addEventListener('click', () => historyModal.showModal());
+    historyModal?.querySelector('.close-order-history')?.addEventListener('click', () => historyModal.close());
+    historyModal?.addEventListener('click', event => {
+        if (event.target === historyModal) historyModal.close();
+    });
+    const historyDateForm = document.getElementById('historyDateForm');
+    const historyFilters = historyModal?.querySelector('.history-filters');
+    const historyStatus = document.getElementById('historyResultSummary');
+    const historyError = document.getElementById('historyError');
+    let activeHistoryRequest = null;
+
+    function appendHistoryCell(row, value, className = '') {
+        const cell = document.createElement('td');
+        cell.textContent = value;
+        if (className) cell.className = className;
+        row.appendChild(cell);
+    }
+
+    function updateOrderHistory(data) {
+        const body = document.getElementById('historyTableBody');
+        const rows = [];
+        data.orders.forEach(order => {
+            if (!order.items.length) {
+                const row = document.createElement('tr');
+                appendHistoryCell(row, order.date);
+                appendHistoryCell(row, `#${order.id}`);
+                appendHistoryCell(row, order.status);
+                const emptyCell = document.createElement('td');
+                emptyCell.colSpan = 2;
+                emptyCell.className = 'muted';
+                emptyCell.textContent = 'No fruit items';
+                row.appendChild(emptyCell);
+                rows.push(row);
+                return;
+            }
+            order.items.forEach(item => {
+                const row = document.createElement('tr');
+                appendHistoryCell(row, order.date);
+                appendHistoryCell(row, `#${order.id}`);
+                appendHistoryCell(row, order.status);
+                appendHistoryCell(row, item.fruit);
+                appendHistoryCell(row, String(item.quantity), 'history-quantity');
+                rows.push(row);
+            });
+        });
+        body.replaceChildren(...rows);
+
+        const hasOrders = data.orders.length > 0;
+        document.getElementById('historyEmpty').hidden = hasOrders;
+        document.getElementById('historyTableWrap').hidden = !hasOrders;
+        const countLabel = `${data.order_count} order${data.order_count === 1 ? '' : 's'}`;
+        historyStatus.textContent = `${data.from_label} – ${data.to_label} · ${countLabel}`;
+        document.getElementById('historyLauncherSummary').textContent = `Showing ${data.from_label} – ${data.to_label} · ${countLabel}`;
+        document.getElementById('historyFrom').value = data.from;
+        document.getElementById('historyTo').value = data.to;
+
+        const downloadQuery = new URLSearchParams({ history: 'custom', from: data.from, to: data.to });
+        document.getElementById('historyDownload').href = `${historyPdfUrl}?${downloadQuery.toString()}`;
+        historyFilters.querySelectorAll('[data-history-preset]').forEach(button => {
+            const selected = button.dataset.historyPreset === data.history;
+            button.classList.toggle('active', selected);
+            if (selected) button.setAttribute('aria-current', 'date');
+            else button.removeAttribute('aria-current');
+        });
+
+        const url = new URL(window.location.href);
+        url.search = new URLSearchParams({
+            history: data.history,
+            from: data.from,
+            to: data.to,
+        }).toString();
+        window.history.replaceState({}, '', url);
+    }
+
+    async function loadOrderHistory(parameters) {
+        activeHistoryRequest?.abort();
+        const requestController = new AbortController();
+        activeHistoryRequest = requestController;
+        const controls = [...historyModal.querySelectorAll('.history-filters a, .history-date-form input, .history-date-form button, #historyDownload')];
+        controls.forEach(control => {
+            control.setAttribute('aria-disabled', 'true');
+            if ('disabled' in control) control.disabled = true;
+        });
+        historyModal.setAttribute('aria-busy', 'true');
+        historyError.hidden = true;
+        historyStatus.textContent = 'Loading orders...';
+
+        try {
+            const response = await fetch(`${historyDataUrl}?${parameters.toString()}`, {
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                signal: requestController.signal,
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                const message = data.errors ? Object.values(data.errors).flat().join(' ') : (data.message || 'Unable to load order history.');
+                throw new Error(message);
+            }
+            updateOrderHistory(data);
+        } catch (error) {
+            if (error.name === 'AbortError') return;
+            historyStatus.textContent = 'Could not load the selected orders.';
+            historyError.textContent = error.message;
+            historyError.hidden = false;
+        } finally {
+            if (activeHistoryRequest === requestController) {
+                controls.forEach(control => {
+                    control.removeAttribute('aria-disabled');
+                    if ('disabled' in control) control.disabled = false;
+                });
+                historyModal.removeAttribute('aria-busy');
+            }
+        }
+    }
+
+    historyFilters?.addEventListener('click', event => {
+        const button = event.target.closest('[data-history-preset]');
+        if (!button || button.getAttribute('aria-disabled') === 'true') return;
+        event.preventDefault();
+        loadOrderHistory(new URLSearchParams({ history: button.dataset.historyPreset }));
+    });
+    document.getElementById('historyDownload')?.addEventListener('click', event => {
+        if (event.currentTarget.getAttribute('aria-disabled') === 'true') event.preventDefault();
+    });
+    historyDateForm?.addEventListener('submit', event => {
+        event.preventDefault();
+        if (!historyDateForm.reportValidity()) return;
+        loadOrderHistory(new URLSearchParams(new FormData(historyDateForm)));
+    });
     const successMessage = sessionStorage.getItem('shop-order-success');
     if (successMessage) {
         sessionStorage.removeItem('shop-order-success');
