@@ -24,10 +24,10 @@
                 <form id="loginForm" method="POST" action="{{ route('login.post') }}">
                     @csrf
                     <div class="login-form-head">
-                        <img style="border-radius: 50%; object-fit: cover; height: 80px; width: 80px;"
-                            src="{{ asset('admin/assets/images/icon/logo.png') }}" alt="logo">
+                        {{-- <img style="border-radius: 50%; object-fit: cover; height: 80px; width: 80px;"
+                            src="{{ asset('admin/assets/images/icon/logo.png') }}" alt="logo"> --}}
                         <h4>Sign In</h4>
-                        <p>Hello there, Sign in and Welcome to our Elite Express</p>
+                        <p>Welcome to our DHAKA FRUTAS</p>
                     </div>
                     <div class="login-form-body">
                         <div class="form-gp">
@@ -65,14 +65,14 @@
 
                         <div class="submit-btn-area">
                             <button id="form_submit" type="submit">Submit <i class="ti-arrow-right"></i></button>
-                            <div class="login-other row mt-4">
+                            {{-- <div class="login-other row mt-4">
                                 <div class="col-6">
                                     <a class="fb-login" href="#">Log in with <i class="fa fa-facebook"></i></a>
                                 </div>
                                 <div class="col-6">
                                     <a class="google-login" href="#">Log in with <i class="fa fa-google"></i></a>
                                 </div>
-                            </div>
+                            </div> --}}
                         </div>
                         {{-- <div class="form-footer text-center mt-5">
                             <p class="text-muted">Don't have an account? <a href="#">Sign up</a></p>

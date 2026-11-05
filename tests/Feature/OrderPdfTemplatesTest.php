@@ -82,6 +82,33 @@ class OrderPdfTemplatesTest extends TestCase
         $this->assertStringContainsString('AGUACATE C', $html);
     }
 
+    public function test_draft_shop_order_page_renders_mobile_order_preview_controls(): void
+    {
+        [$shop] = $this->makeOrderData();
+
+        $html = view('shop.orders.index', [
+            'shop' => $shop,
+            'order' => null,
+            'orderDate' => '2026-10-08',
+            'catalog' => collect(),
+            'initialItems' => collect(),
+            'unavailableFruitCount' => 0,
+            'historyFrom' => CarbonImmutable::parse('2026-10-01'),
+            'historyTo' => CarbonImmutable::parse('2026-10-07'),
+            'historyPreset' => 'custom',
+            'historyOrders' => collect(),
+        ])->render();
+
+        $this->assertStringContainsString('id="openMobileOrder"', $html);
+        $this->assertStringContainsString('id="closeMobileOrder"', $html);
+        $this->assertStringContainsString('id="mobilePreviewEmpty"', $html);
+        $this->assertStringContainsString('data-quantity-step=', $html);
+        $this->assertStringContainsString('88dvh', $html);
+        $this->assertStringContainsString('data-letter="ALL"', $html);
+        $this->assertStringContainsString('id="orderHistoryModal"', $html);
+        $this->assertStringContainsString('id="historyTableBody"', $html);
+    }
+
     public function test_final_warehouse_pdf_uses_the_saved_weight_and_order_values(): void
     {
         [$shop, $order, , $item] = $this->makeOrderData();

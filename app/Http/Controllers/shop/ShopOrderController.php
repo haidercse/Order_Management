@@ -216,7 +216,7 @@ class ShopOrderController extends Controller
 
         $data = $request->validate([
             'notes' => ['nullable', 'string', 'max:2000'],
-            'items' => [$submit ? 'required' : 'nullable', 'array', 'max:100'],
+            'items' => [$submit ? 'required' : 'nullable', 'array'],
             'items.*.fruit_id' => ['required', 'integer', 'distinct', 'exists:fruits,id'],
             'items.*.unit_id' => ['required', 'integer', 'exists:units,id'],
             'items.*.box_configuration_id' => ['nullable', 'integer', 'exists:fruit_box_configurations,id'],

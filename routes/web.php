@@ -32,6 +32,9 @@ use App\Http\Controllers\admin\AuthController;
 Route::get('/test', function () {
     return view('pdf_style');
 })->name('test');
+Route::get('/ui_improve', function () {
+    return view('shop.orders.improve_ui');
+})->name('ui_improve');
 
 Route::get('/', function () {
     if (auth()->check() && auth()->user()->hasRole('shop-manager')) {
