@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\admin\AdminController;
+use App\Http\Controllers\admin\AuthController;
 use App\Http\Controllers\admin\CategoryController;
 use App\Http\Controllers\admin\FruitBoxConfigurationController;
 use App\Http\Controllers\admin\FruitController;
@@ -13,11 +15,10 @@ use App\Http\Controllers\admin\ReportController;
 use App\Http\Controllers\admin\RoleController;
 use App\Http\Controllers\admin\ShopController;
 use App\Http\Controllers\admin\ShortageController;
-use App\Http\Controllers\shop\ShopOrderController;
+use App\Http\Controllers\admin\UserController;
 use App\Http\Controllers\PasswordController;
+use App\Http\Controllers\shop\ShopOrderController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\admin\AdminController;
-use App\Http\Controllers\admin\AuthController;
 
 /*
 |--------------------------------------------------------------------------
@@ -107,7 +108,12 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'password.change.req
 
     Route::delete('/permissions/delete/{id}', [PermissionController::class, 'deleteAjax'])->name('permissions.delete.ajax');
 
-
+    Route::get('/users', [UserController::class, 'index'])
+        ->middleware('permission:user.view')
+        ->name('users.index');
+    Route::post('/users', [UserController::class, 'store'])
+        ->middleware('permission:user.create')
+        ->name('users.store');
 
     Route::prefix('shops')
         ->name('shops.')

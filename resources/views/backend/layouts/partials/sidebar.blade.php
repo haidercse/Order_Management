@@ -12,7 +12,7 @@
     <div class="sidebar-header">
         <div class="logo">
             <a href="{{ route('admin.dashboard') }}">
-                <img class="round-logo" src="{{ asset('admin/assets/images/icon/logo.png') }}" alt="logo">
+                <img class="round-logo" src="{{ asset('admin/assets/images/icon/dhakafrutas.jpeg') }}" alt="logo">
             </a>
         </div>
     </div>

@@ -46,6 +46,11 @@ class MenuSeeder extends Seeder
                     ['title'=>'Role List','route'=>'admin.roles.index','permission'=>'role.view'],
                 ]],
             ],
+            'User Management' => [
+                ['title'=>'Users','icon'=>'fa fa-users','permission'=>'user.view','children'=>[
+                    ['title'=>'User List','route'=>'admin.users.index','permission'=>'user.view'],
+                ]],
+            ],
             'Menu Management' => [
                 ['title'=>'Menus','icon'=>'ti-menu','permission'=>'menu.view','children'=>[
                     ['title'=>'Menu List','route'=>'admin.menus.index','permission'=>'menu.view'],

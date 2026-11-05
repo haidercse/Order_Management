@@ -24,8 +24,8 @@
                 <form id="loginForm" method="POST" action="{{ route('login.post') }}">
                     @csrf
                     <div class="login-form-head">
-                        {{-- <img style="border-radius: 50%; object-fit: cover; height: 80px; width: 80px;"
-                            src="{{ asset('admin/assets/images/icon/logo.png') }}" alt="logo"> --}}
+                        <img style="border-radius: 50%; object-fit: cover; height: 80px; width: 80px;"
+                            src="{{ asset('admin/assets/images/icon/dhakafrutas.jpeg') }}" alt="logo">
                         <h4>Sign In</h4>
                         <p>Welcome to our DHAKA FRUTAS</p>
                     </div>
