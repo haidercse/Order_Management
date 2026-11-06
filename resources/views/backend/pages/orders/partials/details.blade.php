@@ -1,6 +1,7 @@
 @php
     $weightsComplete = $order->items->isNotEmpty()
-        && $order->items->every(fn ($item) => $item->warehouse_weight_kg !== null);
+        && $order->items->every(fn ($item) => (float) $item->unit_weight_kg > 0 || $item->warehouse_weight_kg !== null);
+    $scaleItems = $order->items->filter(fn ($item) => (float) $item->unit_weight_kg <= 0);
     $canEditWeights = $order->status === 'submitted';
 @endphp
 
@@ -15,7 +16,7 @@
     @if ($weightsComplete)
         <a class="btn btn-sm btn-primary" href="{{ route('admin.orders.final-pdf', $order->id) }}" target="_blank" rel="noopener">Download final PDF</a>
     @else
-        <button class="btn btn-sm btn-secondary" type="button" disabled title="Enter and save every warehouse weight first">Final PDF requires all weights</button>
+        <button class="btn btn-sm btn-secondary" type="button" disabled title="Enter and save scale weights for variable-weight items first">Final PDF requires scale weights</button>
     @endif
 </div>
 
@@ -24,7 +25,7 @@
     <div class="table-responsive">
         <table class="table table-sm table-bordered">
             <thead class="thead-light">
-                <tr><th>Fruit</th><th>Cajas</th><th>Box</th><th>Estimated kg</th><th>Warehouse total weight (kg)</th></tr>
+                <tr><th>Fruit</th><th>NO (Cajas)</th><th>Box</th><th>KILO / box</th><th>T KILO</th><th>TARA / box</th><th>Scale weight (kg)</th></tr>
             </thead>
             <tbody>
                 @forelse ($order->items as $item)
@@ -32,33 +33,47 @@
                         <td>{{ $item->fruit->display_name ?: $item->fruit->name }}</td>
                         <td>{{ number_format((float) $item->quantity, 0) }}</td>
                         <td>{{ $item->boxConfiguration->name ?? $item->unit->symbol ?? $item->unit->name }}</td>
-                        <td>{{ $item->converted_kg !== null ? number_format((float) $item->converted_kg, 3) : '—' }}</td>
                         <td>
-                            <input
-                                class="form-control form-control-sm"
-                                type="number"
-                                name="weights[{{ $item->id }}]"
-                                min="0.001"
-                                max="999999.999"
-                                step="0.001"
-                                value="{{ $item->warehouse_weight_kg }}"
-                                required
-                                aria-label="Warehouse weight in kilograms for {{ $item->fruit->display_name ?: $item->fruit->name }}"
-                                @disabled(!$canEditWeights)
-                            >
+                            {{ (float) $item->unit_weight_kg > 0 ? number_format((float) $item->unit_weight_kg, 3) : '—' }}
+                        </td>
+                        <td>
+                            {{ (float) $item->unit_weight_kg > 0
+                                ? number_format((float) $item->quantity * (float) $item->unit_weight_kg, 3)
+                                : ($item->warehouse_weight_kg !== null ? number_format((float) $item->warehouse_weight_kg, 3) : '—') }}
+                        </td>
+                        <td>{{ (float) ($item->unit_tare_kg ?? 0) > 0 ? number_format((float) $item->unit_tare_kg, 3) : '—' }}</td>
+                        <td>
+                            @if ((float) $item->unit_weight_kg <= 0)
+                                <input
+                                    class="form-control form-control-sm"
+                                    type="number"
+                                    name="weights[{{ $item->id }}]"
+                                    min="0.001"
+                                    max="999999.999"
+                                    step="0.001"
+                                    value="{{ $item->warehouse_weight_kg }}"
+                                    required
+                                    aria-label="Scale weight in kilograms for {{ $item->fruit->display_name ?: $item->fruit->name }}"
+                                    @disabled(!$canEditWeights)
+                                >
+                            @else
+                                <span class="text-muted">Fixed weight</span>
+                            @endif
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="5" class="text-center">This order has no items.</td></tr>
+                    <tr><td colspan="7" class="text-center">This order has no items.</td></tr>
                 @endforelse
             </tbody>
         </table>
     </div>
-    @if ($canEditWeights && $order->items->isNotEmpty())
+    @if ($canEditWeights && $scaleItems->isNotEmpty())
         <button class="btn btn-sm btn-success" type="submit">Save warehouse weights</button>
+    @elseif ($canEditWeights && $order->items->isNotEmpty())
+        <p class="text-muted mb-0">All items use fixed box weights; T KILO is calculated from Cajas × KILO.</p>
     @elseif (!$canEditWeights)
-        <p class="text-muted mb-0">Weights cannot be changed after an order is marked prepared.</p>
+        <p class="text-muted mb-0">Scale weights cannot be changed after an order is marked prepared.</p>
     @endif
 </form>
 
-<div class="mt-3 text-muted">Order total: {{ number_format($order->items->sum(fn ($item) => (float) ($item->line_total ?? ((float) $item->quantity * (float) $item->unit_price))), 2) }}</div>
+<div class="mt-3 text-muted">Fixed-weight items use Cajas × KILO. Variable-weight items use the saved scale weight.</div>

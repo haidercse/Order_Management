@@ -15,94 +15,113 @@ class AdminController extends Controller
 {
     public function index(Request $request)
     {
+        $user = $request->user();
+        $canViewOrders = $user->can('order.view.all');
+        $canViewInventory = $user->can('inventory.view');
+        $canViewDemandAndInventory = $canViewOrders && $canViewInventory;
+
         $timezone = SystemSetting::query()->where('key', 'timezone')->value('value') ?: config('app.timezone');
         $localToday = CarbonImmutable::now($timezone);
         $submittedFrom = $localToday->startOfDay()->utc();
         $submittedUntil = $localToday->endOfDay()->utc();
-        $submittedOrders = Order::query()
-            ->whereNotNull('submitted_at')
-            ->whereBetween('submitted_at', [$submittedFrom, $submittedUntil]);
+        $todayOrdersCount = 0;
+        $activeShopsCount = $user->can('shop.view') ? Shop::query()->where('status', 'active')->count() : 0;
+        $orderValue = 0;
+        $fruitDemand = collect();
+        $demandSummary = collect();
+        $shortageCount = 0;
+        $topDemandedFruits = collect();
+        $orders = collect();
 
-        $todayOrdersCount = (clone $submittedOrders)->count();
-        $activeShopsCount = Shop::query()->where('status', 'active')->count();
-        $orderValue = DB::table('order_items')
-            ->join('orders', 'orders.id', '=', 'order_items.order_id')
-            ->whereNotNull('orders.submitted_at')
-            ->whereBetween('orders.submitted_at', [$submittedFrom, $submittedUntil])
-            ->sum(DB::raw('COALESCE(order_items.line_total, order_items.quantity * order_items.unit_price)'));
+        if ($canViewOrders) {
+            $submittedOrders = Order::query()
+                ->whereNotNull('submitted_at')
+                ->whereBetween('submitted_at', [$submittedFrom, $submittedUntil]);
+            $todayOrdersCount = (clone $submittedOrders)->count();
+            $orderValue = DB::table('order_items')
+                ->join('orders', 'orders.id', '=', 'order_items.order_id')
+                ->whereNotNull('orders.submitted_at')
+                ->whereBetween('orders.submitted_at', [$submittedFrom, $submittedUntil])
+                ->sum(DB::raw('COALESCE(order_items.line_total, order_items.quantity * order_items.unit_price)'));
 
-        $demandByFruit = DB::table('order_items')
-            ->join('orders', 'orders.id', '=', 'order_items.order_id')
-            ->whereNotNull('orders.submitted_at')
-            ->whereBetween('orders.submitted_at', [$submittedFrom, $submittedUntil])
-            ->select('order_items.fruit_id')
-            ->selectRaw('SUM(COALESCE(order_items.warehouse_weight_kg, order_items.converted_kg, order_items.quantity)) AS demand_kg')
-            ->groupBy('order_items.fruit_id')
-            ->get()
-            ->keyBy('fruit_id');
+            $orders = (clone $submittedOrders)
+                ->with(['shop', 'items.fruit', 'items.unit'])
+                ->withCount('items')
+                ->orderByDesc('submitted_at')
+                ->limit(10)
+                ->get();
+        }
 
-        $stockByFruit = DB::table('inventory_stocks')
-            ->where('status', 'active')
-            ->select('fruit_id')
-            ->selectRaw('SUM(quantity_kg - reserved_kg) AS available_kg')
-            ->groupBy('fruit_id')
-            ->pluck('available_kg', 'fruit_id');
+        if ($canViewDemandAndInventory) {
+            $demandByFruit = DB::table('order_items')
+                ->join('orders', 'orders.id', '=', 'order_items.order_id')
+                ->whereNotNull('orders.submitted_at')
+                ->whereBetween('orders.submitted_at', [$submittedFrom, $submittedUntil])
+                ->select('order_items.fruit_id')
+                ->selectRaw('SUM(COALESCE(order_items.warehouse_weight_kg, order_items.converted_kg, order_items.quantity)) AS demand_kg')
+                ->groupBy('order_items.fruit_id')
+                ->get()
+                ->keyBy('fruit_id');
 
-        $fruits = Fruit::query()
-            ->with([
-                'defaultUnit',
-                'boxConfigurations' => fn ($query) => $query->where('is_default', true),
-            ])
-            ->whereIn('id', $demandByFruit->keys())
-            ->get()
-            ->keyBy('id');
+            $stockByFruit = DB::table('inventory_stocks')
+                ->where('status', 'active')
+                ->select('fruit_id')
+                ->selectRaw('SUM(quantity_kg - reserved_kg) AS available_kg')
+                ->groupBy('fruit_id')
+                ->pluck('available_kg', 'fruit_id');
 
-        $fruitDemand = $demandByFruit->map(function ($demand) use ($fruits, $stockByFruit) {
-            $fruit = $fruits->get($demand->fruit_id);
-            if (!$fruit) {
-                return null;
-            }
+            $fruits = Fruit::query()
+                ->with([
+                    'defaultUnit',
+                    'boxConfigurations' => fn ($query) => $query->where('is_default', true),
+                ])
+                ->whereIn('id', $demandByFruit->keys())
+                ->get()
+                ->keyBy('id');
 
-            $box = $fruit->boxConfigurations->first();
-            $boxWeightKg = $box ? (float) $box->weight_kg : 0;
-            $unitLabel = $boxWeightKg > 0 ? 'caja' : ($fruit->defaultUnit->symbol ?? 'kg');
-            $demandKg = (float) $demand->demand_kg;
-            $availableKg = max(0, (float) ($stockByFruit[$fruit->id] ?? 0));
-            $divisor = $boxWeightKg > 0 ? $boxWeightKg : 1;
-            $demandQuantity = $demandKg / $divisor;
-            $availableQuantity = $availableKg / $divisor;
+            $fruitDemand = $demandByFruit->map(function ($demand) use ($fruits, $stockByFruit) {
+                $fruit = $fruits->get($demand->fruit_id);
+                if (! $fruit) {
+                    return null;
+                }
 
-            return [
-                'name' => $fruit->display_name ?: $fruit->name,
-                'unit' => $unitLabel,
-                'demand' => $demandQuantity,
-                'available' => $availableQuantity,
-                'difference' => $availableQuantity - $demandQuantity,
-                'shortage' => $demandKg > $availableKg,
-            ];
-        })->filter()->values();
+                $box = $fruit->boxConfigurations->first();
+                $boxWeightKg = $box ? (float) $box->weight_kg : 0;
+                $unitLabel = $boxWeightKg > 0 ? 'caja' : ($fruit->defaultUnit->symbol ?? 'kg');
+                $demandKg = (float) $demand->demand_kg;
+                $availableKg = max(0, (float) ($stockByFruit[$fruit->id] ?? 0));
+                $divisor = $boxWeightKg > 0 ? $boxWeightKg : 1;
+                $demandQuantity = $demandKg / $divisor;
+                $availableQuantity = $availableKg / $divisor;
 
-        $shortageCount = $fruitDemand->where('shortage', true)->count();
-        $demandSummary = $fruitDemand
-            ->groupBy('unit')
-            ->map(fn ($items) => $items->sum('demand'));
-        $topDemandedFruits = $fruitDemand
-            ->sortByDesc('demand')
-            ->take(5)
-            ->values();
+                return [
+                    'name' => $fruit->display_name ?: $fruit->name,
+                    'unit' => $unitLabel,
+                    'demand' => $demandQuantity,
+                    'available' => $availableQuantity,
+                    'difference' => $availableQuantity - $demandQuantity,
+                    'shortage' => $demandKg > $availableKg,
+                ];
+            })->filter()->values();
 
-        $orders = (clone $submittedOrders)
-            ->with(['shop', 'items.fruit', 'items.unit'])
-            ->withCount('items')
-            ->orderByDesc('submitted_at')
-            ->limit(10)
-            ->get();
+            $shortageCount = $fruitDemand->where('shortage', true)->count();
+            $demandSummary = $fruitDemand
+                ->groupBy('unit')
+                ->map(fn ($items) => $items->sum('demand'));
+            $topDemandedFruits = $fruitDemand
+                ->sortByDesc('demand')
+                ->take(5)
+                ->values();
+        }
 
-        $currency = SystemSetting::query()
-            ->where('key', 'currency')
-            ->value('value') ?: 'EUR';
+        $currency = $canViewOrders
+            ? (SystemSetting::query()->where('key', 'currency')->value('value') ?: 'EUR')
+            : null;
 
         $data = compact(
+            'canViewOrders',
+            'canViewInventory',
+            'canViewDemandAndInventory',
             'todayOrdersCount',
             'activeShopsCount',
             'orderValue',

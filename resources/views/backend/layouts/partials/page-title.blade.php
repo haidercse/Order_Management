@@ -5,7 +5,7 @@
             <div class="breadcrumbs-area clearfix">
                 <h4 class="page-title pull-left">{{ trim($__env->yieldContent('title')) ?: 'Dashboard' }}</h4>
                 <ul class="breadcrumbs pull-left">
-                    <li><a href="{{ route('admin.dashboard') }}">Home</a></li>
+                    <li><a href="{{ route('home') }}">Home</a></li>
                     <li><span>{{ trim($__env->yieldContent('title')) ?: 'Dashboard' }}</span></li>
                 </ul>
             </div>

@@ -11,7 +11,7 @@
 <div class="sidebar-menu">
     <div class="sidebar-header">
         <div class="logo">
-            <a href="{{ route('admin.dashboard') }}">
+            <a href="{{ route('home') }}">
                 <img class="round-logo" src="{{ asset('admin/assets/images/icon/dhakafrutas.jpeg') }}" alt="logo">
             </a>
         </div>
@@ -24,11 +24,16 @@
                 @php
                     $groups = \App\Models\MenuGroup::with([
                         'menus' => function ($q) {
-                            $q->whereNull('parent_id')->orderBy('order');
+                            $q->whereNull('parent_id')
+                                ->where('status', true)
+                                ->with(['children' => fn ($children) => $children->where('status', true)])
+                                ->orderBy('order');
                         },
                     ])
+                        ->where('status', true)
                         ->orderBy('order')
                         ->get();
+                    $currentUser = auth()->user();
                 @endphp
 
                 <ul class="metismenu" id="menu">
@@ -36,7 +41,20 @@
                     @foreach ($groups as $group)
                         @foreach ($group->menus as $menu)
                             @php
-                                $submenus = $menu->children;
+                                $submenus = $menu->children->filter(
+                                    fn ($sub) => !$sub->permission || $currentUser->can($sub->permission),
+                                );
+                                $canViewMenu = !$menu->permission || $currentUser->can($menu->permission);
+                                if ($menu->children->isNotEmpty()) {
+                                    $canViewMenu = $submenus->isNotEmpty()
+                                        || ($menu->route && (!$menu->permission || $currentUser->can($menu->permission)));
+                                }
+                                if ($menu->route === 'admin.dashboard' && !$currentUser->hasRole('super-admin')) {
+                                    $canViewMenu = false;
+                                }
+                                if (!$canViewMenu || ($menu->children->isNotEmpty() && $submenus->isEmpty() && !$menu->route)) {
+                                    continue;
+                                }
                                 $hasSub = $submenus->count() > 0;
 
                                 $isActive = false;

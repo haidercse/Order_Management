@@ -26,7 +26,7 @@ class AuthController extends Controller
         $identifier = trim($data['login']);
         $user = User::query()->where('email', $identifier)->first();
 
-        if (!$user) {
+        if (! $user) {
             $shops = Shop::query()
                 ->where('status', 'active')
                 ->where('name', $identifier)
@@ -58,7 +58,7 @@ class AuthController extends Controller
         if ($user && Auth::attempt(['email' => $user->email, 'password' => $data['password']], $remember)) {
             $authenticatedUser = Auth::user();
 
-            if (!$authenticatedUser->hasAnyRole(['shop-manager', 'super-admin', 'warehouse-manager'])) {
+            if (! $authenticatedUser->hasAnyRole(['shop-manager', 'super-admin', 'warehouse-manager'])) {
                 Auth::logout();
 
                 throw ValidationException::withMessages([
@@ -68,11 +68,7 @@ class AuthController extends Controller
 
             $request->session()->regenerate();
 
-            if ($authenticatedUser->hasRole('shop-manager')) {
-                return redirect()->route('shop.orders.index');
-            }
-
-            return redirect()->route('admin.dashboard');
+            return redirect()->route('home');
         }
 
         throw ValidationException::withMessages([
@@ -80,12 +76,12 @@ class AuthController extends Controller
         ]);
     }
 
-
     public function logout(Request $request)
     {
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+
         return redirect()->route('login');
     }
 }

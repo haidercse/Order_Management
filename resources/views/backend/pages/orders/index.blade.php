@@ -8,6 +8,7 @@
         <div><h3 class="mb-1 text-primary font-weight-bold">Shop Orders</h3><p class="text-muted mb-0">Review submitted orders and advance warehouse fulfilment status.</p></div>
         <div class="mt-2 mt-md-0">
             <button type="button" class="btn btn-primary" id="warehouseSheetBtn"><i class="fa fa-balance-scale"></i> All Shops Warehouse Sheet</button>
+            <button type="button" class="btn btn-success" id="fruitCajasPdfBtn"><i class="fa fa-file-pdf-o"></i> Fruit Cajas PDF</button>
             <a href="{{ route('admin.shortage.index') }}" class="btn btn-outline-warning"><i class="fa fa-exclamation-triangle"></i> Stock shortages</a>
         </div>
     </div>
@@ -48,6 +49,7 @@
 $(function () {
     const indexUrl = @json(route('admin.orders.index'));
     const warehouseSheetUrl = @json(route('admin.orders.warehouse-sheet'));
+    const fruitCajasPdfUrl = @json(route('admin.orders.fruit-cajas-pdf'));
     $.ajaxSetup({ headers: { 'X-CSRF-TOKEN': @json(csrf_token()) } });
     let activeOrderId = null;
     function alertOrders(type, message) {
@@ -73,6 +75,11 @@ $(function () {
         const date = $('#orderDateFilter').val();
         const query = date ? `?date=${encodeURIComponent(date)}` : '';
         window.location.assign(`${warehouseSheetUrl}${query}`);
+    });
+    $('#fruitCajasPdfBtn').on('click', function () {
+        const date = $('#orderDateFilter').val();
+        const query = date ? `?date=${encodeURIComponent(date)}` : '';
+        window.open(`${fruitCajasPdfUrl}${query}`, '_blank', 'noopener');
     });
     $('#resetOrderFilter').on('click', function () {
         $('#orderSearch').val(''); $('#orderDateFilter').val(''); $('#orderStatusFilter').val(''); loadOrders();

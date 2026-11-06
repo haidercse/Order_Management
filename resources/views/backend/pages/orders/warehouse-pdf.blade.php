@@ -91,7 +91,7 @@
                     </td>
                     <td class="number">{{ $item['box_weight'] !== null ? number_format($item['box_weight'], 3) : '' }}</td>
                     <td class="number">{{ $item['total_weight'] !== null ? number_format($item['total_weight'], 3) : '' }}</td>
-                    <td class="number">{{ $item['tare'] !== null ? number_format($item['tare'], 3) : '' }}</td>
+                    <td class="number">{{ $item['total_tare'] !== null ? number_format($item['total_tare'], 3) : '' }}</td>
                     <td class="number">{{ $item['net_weight'] !== null ? number_format($item['net_weight'], 3) : '' }}</td>
                     <td class="number">{{ $item['price'] !== null ? number_format($item['price'], 2) : '' }}</td>
                     <td class="number">{{ $item['total'] !== null ? number_format($item['total'], 2) : '' }}</td>

@@ -209,7 +209,9 @@
     <script>
         (() => {
             const dashboardContent = document.getElementById('dashboard-content');
-            const refreshUrl = @json(route('admin.dashboard'));
+            const refreshUrl = @json(auth()->user()->hasRole('super-admin')
+                ? route('admin.dashboard')
+                : route('admin.warehouse.dashboard'));
             let refreshInProgress = false;
 
             window.setInterval(async () => {

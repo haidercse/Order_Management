@@ -7,7 +7,8 @@
 </div>
 
 <div class="row">
-    <div class="col-12 col-sm-6 col-xl-3">
+    @if ($canViewOrders)
+        <div class="col-12 col-sm-6 col-xl-3">
         <section class="dash-kpi">
             <div class="dash-kpi-body">
                 <div class="d-flex justify-content-between align-items-center">
@@ -18,9 +19,11 @@
                 <div class="dash-kpi-note">Orders submitted / active shops</div>
             </div>
         </section>
-    </div>
+        </div>
+    @endif
 
-    <div class="col-12 col-sm-6 col-xl-3">
+    @if ($canViewDemandAndInventory)
+        <div class="col-12 col-sm-6 col-xl-3">
         <section class="dash-kpi">
             <div class="dash-kpi-body">
                 <div class="d-flex justify-content-between align-items-center">
@@ -45,9 +48,11 @@
                 </div>
             </div>
         </section>
-    </div>
+        </div>
+    @endif
 
-    <div class="col-12 col-sm-6 col-xl-3">
+    @if ($canViewOrders)
+        <div class="col-12 col-sm-6 col-xl-3">
         <section class="dash-kpi">
             <div class="dash-kpi-body">
                 <div class="d-flex justify-content-between align-items-center">
@@ -58,9 +63,11 @@
                 <div class="dash-kpi-note">Based on the saved order-line price totals</div>
             </div>
         </section>
-    </div>
+        </div>
+    @endif
 
-    <div class="col-12 col-sm-6 col-xl-3">
+    @if ($canViewDemandAndInventory)
+        <div class="col-12 col-sm-6 col-xl-3">
         <section class="dash-kpi">
             <div class="dash-kpi-body">
                 <div class="d-flex justify-content-between align-items-center">
@@ -71,9 +78,11 @@
                 <div class="dash-kpi-note">Fruit items where submitted demand exceeds available stock</div>
             </div>
         </section>
-    </div>
+        </div>
+    @endif
 </div>
 
+@if ($canViewDemandAndInventory)
 <section class="dash-section">
     <div class="dash-section-heading">
         <div>
@@ -130,9 +139,11 @@
         </table>
     </div>
 </section>
+@endif
 
 <div class="row">
-    <div class="col-12 col-xl-8">
+    @if ($canViewOrders)
+    <div class="col-12 {{ $canViewDemandAndInventory ? 'col-xl-8' : '' }}">
         <section class="dash-section">
             <div class="dash-section-heading">
                 <h3>Today's shop orders</h3>
@@ -192,7 +203,9 @@
             </div>
         </section>
     </div>
+    @endif
 
+    @if ($canViewDemandAndInventory)
     <div class="col-12 col-xl-4">
         <section class="dash-section">
             <div class="dash-section-heading">
@@ -214,4 +227,5 @@
             </div>
         </section>
     </div>
+    @endif
 </div>

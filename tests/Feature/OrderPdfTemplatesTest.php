@@ -109,7 +109,7 @@ class OrderPdfTemplatesTest extends TestCase
         $this->assertStringContainsString('id="historyTableBody"', $html);
     }
 
-    public function test_final_warehouse_pdf_uses_the_saved_weight_and_order_values(): void
+    public function test_final_warehouse_pdf_shows_calculated_weights_and_whole_currency_grand_total(): void
     {
         [$shop, $order, , $item] = $this->makeOrderData();
         $item->warehouse_weight_kg = '12.345';
@@ -119,13 +119,49 @@ class OrderPdfTemplatesTest extends TestCase
             'shop' => $shop,
             'order' => $order,
             'currency' => 'EUR',
+            'pdfItems' => collect([
+                [
+                    'quantity' => 8,
+                    'name' => 'BANANAS B',
+                    'box_weight' => 18,
+                    'total_weight' => 144,
+                    'tare' => 0,
+                    'net_weight' => 144,
+                    'price' => 1.05,
+                    'total' => 151.20,
+                ],
+                [
+                    'quantity' => 4,
+                    'name' => 'AGUACATE OFF',
+                    'box_weight' => null,
+                    'total_weight' => 5.5,
+                    'tare' => 0.3,
+                    'net_weight' => 4.3,
+                    'price' => 2.5,
+                    'total' => 10.75,
+                ],
+                [
+                    'quantity' => 1,
+                    'name' => 'OTHER FRUIT',
+                    'box_weight' => null,
+                    'total_weight' => 1877.68,
+                    'tare' => 0,
+                    'net_weight' => 1877.68,
+                    'price' => 1,
+                    'total' => 1877.68,
+                ],
+            ]),
         ])->render();
 
         $this->assertStringContainsString('TEST-SHOP', $html);
-        $this->assertStringContainsString('AGUACATE C', $html);
-        $this->assertStringContainsString('12.345', $html);
-        $this->assertStringContainsString('20.10', $html);
-        $this->assertStringContainsString('EUR', $html);
+        $this->assertStringContainsString('KILO / BOX', $html);
+        $this->assertStringContainsString('TARA / BOX', $html);
+        $this->assertStringContainsString('144.000', $html);
+        $this->assertStringContainsString('4.300', $html);
+        $this->assertStringContainsString('€', $html);
+        $this->assertStringContainsString('2,040', $html);
+        $this->assertStringContainsString('10.75', $html);
+        $this->assertStringStartsWith('%PDF', \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html)->setPaper('a4', 'landscape')->output());
     }
 
     public function test_consolidated_warehouse_pdf_shows_the_combined_quantity_and_saved_weight(): void
@@ -150,6 +186,7 @@ class OrderPdfTemplatesTest extends TestCase
                     'box_weight' => 4,
                     'total_weight' => 47.250,
                     'tare' => 1.250,
+                    'total_tare' => 1.250,
                     'net_weight' => 46.000,
                     'price' => 6.70,
                     'total' => 308.20,

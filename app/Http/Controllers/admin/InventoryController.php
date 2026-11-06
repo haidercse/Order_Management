@@ -78,23 +78,30 @@ class InventoryController extends Controller
             'notes' => ['nullable', 'string', 'max:2000'],
         ]);
 
+        $requiredPermission = match ($data['type']) {
+            'purchase', 'return' => 'inventory.create',
+            'issue' => 'inventory.edit',
+            'damage', 'adjustment' => 'inventory.adjust',
+        };
+        abort_unless($request->user()->can($requiredPermission), 403);
+
         $fruit = Fruit::findOrFail($data['fruit_id']);
         $unit = Unit::query()->where('is_order_unit', true)->findOrFail($data['unit_id']);
         $box = null;
 
         if ($unit->code === 'BOX') {
-            if (!$data['box_configuration_id']) {
+            if (! $data['box_configuration_id']) {
                 throw ValidationException::withMessages(['box_configuration_id' => 'Select a box configuration for BOX stock.']);
             }
             $box = $fruit->boxConfigurations()->whereKey($data['box_configuration_id'])->where('status', true)->first();
-            if (!$box) {
+            if (! $box) {
                 throw ValidationException::withMessages(['box_configuration_id' => 'Choose an active box configuration belonging to this fruit.']);
             }
         } elseif ($data['box_configuration_id']) {
             throw ValidationException::withMessages(['box_configuration_id' => 'Box configuration can only be selected for the BOX unit.']);
         }
 
-        if ($unit->code !== 'BOX' && !$unit->is_weight_unit) {
+        if ($unit->code !== 'BOX' && ! $unit->is_weight_unit) {
             throw ValidationException::withMessages(['unit_id' => 'Inventory can only be tracked in kilograms or configured box units.']);
         }
 
@@ -106,7 +113,7 @@ class InventoryController extends Controller
         $storedType = $data['type'];
         $notes = $data['notes'] ?? null;
         if ($data['type'] === 'adjustment') {
-            $notes = trim('Adjustment ' . ($addsStock ? '(increase)' : '(decrease)') . '. ' . ($notes ?? ''));
+            $notes = trim('Adjustment '.($addsStock ? '(increase)' : '(decrease)').'. '.($notes ?? ''));
         }
 
         DB::transaction(function () use ($data, $fruit, $unit, $box, $addsStock, $quantity, $quantityKg, $storedType, $notes): void {
@@ -118,11 +125,11 @@ class InventoryController extends Controller
                 : $stockQuery->whereNull('box_configuration_id');
 
             $stock = $stockQuery->lockForUpdate()->first();
-            if (!$stock && !$addsStock) {
+            if (! $stock && ! $addsStock) {
                 throw ValidationException::withMessages(['quantity' => 'There is no stock row for this item; record an incoming purchase first.']);
             }
 
-            if (!$stock) {
+            if (! $stock) {
                 $stock = InventoryStock::create([
                     'fruit_id' => $fruit->id,
                     'unit_id' => $unit->id,
@@ -135,7 +142,7 @@ class InventoryController extends Controller
                 ]);
             }
 
-            if (!$addsStock && ((float) $stock->quantity - (float) $stock->reserved_quantity) < $quantity) {
+            if (! $addsStock && ((float) $stock->quantity - (float) $stock->reserved_quantity) < $quantity) {
                 throw ValidationException::withMessages(['quantity' => 'The requested outgoing quantity exceeds the unreserved stock.']);
             }
 

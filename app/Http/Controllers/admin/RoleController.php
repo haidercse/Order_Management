@@ -4,6 +4,8 @@ namespace App\Http\Controllers\admin;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
@@ -11,9 +13,13 @@ class RoleController extends Controller
 {
     public function index()
     {
-        // group_name অনুযায়ী group হবে
         $roles = Role::all();
-        $permissions = Permission::orderBy('group_name')->get()->groupBy('group_name');
+        $groupNames = DB::table('permission_groups')->pluck('name', 'id');
+        $permissions = Permission::query()
+            ->orderBy('name')
+            ->get()
+            ->groupBy(fn (Permission $permission) => $permission->group_name
+                ?: ($groupNames[$permission->group_id] ?? Str::headline(Str::before($permission->name, '.'))));
 
         return view('backend.pages.roles.index', compact('roles', 'permissions'));
     }
@@ -24,7 +30,7 @@ class RoleController extends Controller
 
         return response()->json([
             'role' => $role,
-            'assigned' => $role->permissions->pluck('name')->toArray()
+            'assigned' => $role->permissions->pluck('name')->toArray(),
         ]);
     }
 

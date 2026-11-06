@@ -30,20 +30,44 @@ use Illuminate\Support\Facades\Route;
 | contains the "web" middleware group. Now create something great!
 |
 */
-Route::get('/test', function () {
-    return view('pdf_style');
-})->name('test');
-Route::get('/ui_improve', function () {
-    return view('shop.orders.improve_ui');
-})->name('ui_improve');
 
 Route::get('/', function () {
-    if (auth()->check() && auth()->user()->hasRole('shop-manager')) {
+    $user = auth()->user();
+
+    if (! $user) {
+        return redirect()->route('login');
+    }
+
+    if ($user?->hasRole('shop-manager')) {
         return redirect()->route('shop.orders.index');
     }
 
-    return redirect()->route('admin.dashboard');
-});
+    if ($user?->hasRole('super-admin')) {
+        return redirect()->route('admin.dashboard');
+    }
+
+    foreach ([
+        'inventory.view' => 'admin.warehouse.dashboard',
+        'order.prepare' => 'admin.orders.warehouse-sheet',
+        'order.view.all' => 'admin.orders.index',
+        'shop.view' => 'admin.shops.index',
+        'fruit.view' => 'admin.fruits.index',
+        'category.view' => 'admin.categories.index',
+        'box.view' => 'admin.boxes.index',
+        'price.view' => 'admin.fruit-prices.index',
+        'report.view' => 'admin.reports.daily',
+        'role.view' => 'admin.roles.index',
+        'user.view' => 'admin.users.index',
+        'menu.view' => 'admin.menus.index',
+        'permission.view' => 'admin.permissions.index',
+    ] as $permission => $route) {
+        if ($user?->can($permission)) {
+            return redirect()->route($route);
+        }
+    }
+
+    abort(403, 'No admin page permissions have been assigned to this account.');
+})->name('home');
 // Login and Authentication Routes
 Route::get('login', [AuthController::class, 'login'])->name('login');
 Route::post('login', [AuthController::class, 'loginAll'])->name('login.post');
@@ -64,49 +88,55 @@ Route::middleware(['auth', 'password.change.required', 'role:shop-manager'])->pr
 });
 
 Route::prefix('admin')->name('admin.')->middleware(['auth', 'password.change.required', 'role:super-admin|warehouse-manager'])->group(function () {
-    Route::get('/dashboard', [AdminController::class, 'index'])->name('dashboard');
-    Route::get('/warehouse', [AdminController::class, 'index'])->name('warehouse.dashboard');
+    Route::get('/dashboard', [AdminController::class, 'index'])
+        ->middleware('role:super-admin')
+        ->name('dashboard');
+    Route::get('/warehouse', [AdminController::class, 'index'])
+        ->middleware('permission:inventory.view')
+        ->name('warehouse.dashboard');
     // Menu Management Routes
 
-    Route::get('/menus', [MenuController::class, 'index'])->name('menus.index');
+    Route::get('/menus', [MenuController::class, 'index'])
+        ->middleware('permission:menu.view')
+        ->name('menus.index');
 
-    Route::post('/menus/store', [MenuController::class, 'storeAjax'])->name('menus.store.ajax');
-    Route::post('/menus/update/{id}', [MenuController::class, 'updateAjax'])->name('menus.update.ajax');
-    Route::delete('/menus/delete/{id}', [MenuController::class, 'deleteAjax'])->name('menus.delete.ajax');
+    Route::post('/menus/store', [MenuController::class, 'storeAjax'])->middleware('permission:menu.create')->name('menus.store.ajax');
+    Route::post('/menus/update/{id}', [MenuController::class, 'updateAjax'])->middleware('permission:menu.edit')->name('menus.update.ajax');
+    Route::delete('/menus/delete/{id}', [MenuController::class, 'deleteAjax'])->middleware('permission:menu.delete')->name('menus.delete.ajax');
 
     // Menu Group Management Routes
-    Route::get('/menu-groups', [MenuGroupController::class, 'index'])->name('menu-groups.index');
+    Route::get('/menu-groups', [MenuGroupController::class, 'index'])->middleware('permission:menu.view')->name('menu-groups.index');
 
-    Route::post('/menu-groups/store', [MenuGroupController::class, 'storeAjax'])->name('menu-groups.store.ajax');
+    Route::post('/menu-groups/store', [MenuGroupController::class, 'storeAjax'])->middleware('permission:menu.create')->name('menu-groups.store.ajax');
 
-    Route::post('/menu-groups/update/{id}', [MenuGroupController::class, 'updateAjax'])->name('menu-groups.update.ajax');
+    Route::post('/menu-groups/update/{id}', [MenuGroupController::class, 'updateAjax'])->middleware('permission:menu.edit')->name('menu-groups.update.ajax');
 
-    Route::delete('/menu-groups/delete/{id}', [MenuGroupController::class, 'deleteAjax'])->name('menu-groups.delete.ajax');
+    Route::delete('/menu-groups/delete/{id}', [MenuGroupController::class, 'deleteAjax'])->middleware('permission:menu.delete')->name('menu-groups.delete.ajax');
 
     // Role Management Routes
     // Role Management Routes
-    Route::get('/roles', [RoleController::class, 'index'])->name('roles.index');
+    Route::get('/roles', [RoleController::class, 'index'])->middleware('permission:role.view')->name('roles.index');
 
-    Route::post('/roles/store', [RoleController::class, 'storeAjax'])->name('roles.store.ajax');
+    Route::post('/roles/store', [RoleController::class, 'storeAjax'])->middleware('permission:role.create')->name('roles.store.ajax');
 
-    Route::post('/roles/update/{id}', [RoleController::class, 'updateAjax'])->name('roles.update.ajax');
+    Route::post('/roles/update/{id}', [RoleController::class, 'updateAjax'])->middleware('permission:role.edit')->name('roles.update.ajax');
 
-    Route::delete('/roles/delete/{id}', [RoleController::class, 'deleteAjax'])->name('roles.delete.ajax');
+    Route::delete('/roles/delete/{id}', [RoleController::class, 'deleteAjax'])->middleware('permission:role.delete')->name('roles.delete.ajax');
 
     // FIXED: Correct method name
-    Route::get('/roles/{id}/permissions', [RoleController::class, 'getRole']);
+    Route::get('/roles/{id}/permissions', [RoleController::class, 'getRole'])->middleware('permission:role.view');
 
     // FIXED: Add missing method
-    Route::post('/roles/{id}/permissions/update', [RoleController::class, 'updatePermissions']);
+    Route::post('/roles/{id}/permissions/update', [RoleController::class, 'updatePermissions'])->middleware('permission:role.edit');
 
     // Permission Management
-    Route::get('/permissions', [PermissionController::class, 'index'])->name('permissions.index');
+    Route::get('/permissions', [PermissionController::class, 'index'])->middleware('permission:permission.view')->name('permissions.index');
 
-    Route::post('/permissions/store', [PermissionController::class, 'storeAjax'])->name('permissions.store.ajax');
+    Route::post('/permissions/store', [PermissionController::class, 'storeAjax'])->middleware('permission:permission.create')->name('permissions.store.ajax');
 
-    Route::post('/permissions/update/{id}', [PermissionController::class, 'updateAjax'])->name('permissions.update.ajax');
+    Route::post('/permissions/update/{id}', [PermissionController::class, 'updateAjax'])->middleware('permission:permission.edit')->name('permissions.update.ajax');
 
-    Route::delete('/permissions/delete/{id}', [PermissionController::class, 'deleteAjax'])->name('permissions.delete.ajax');
+    Route::delete('/permissions/delete/{id}', [PermissionController::class, 'deleteAjax'])->middleware('permission:permission.delete')->name('permissions.delete.ajax');
 
     Route::get('/users', [UserController::class, 'index'])
         ->middleware('permission:user.view')
@@ -114,77 +144,88 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'password.change.req
     Route::post('/users', [UserController::class, 'store'])
         ->middleware('permission:user.create')
         ->name('users.store');
+    Route::post('/users/update/{id}', [UserController::class, 'update'])
+        ->middleware('permission:user.edit')
+        ->name('users.update.ajax');
+    Route::delete('/users/delete/{id}', [UserController::class, 'destroy'])
+        ->middleware('permission:user.delete')
+        ->name('users.destroy.ajax');
 
     Route::prefix('shops')
         ->name('shops.')
         ->group(function () {
-            Route::get('/', [ShopController::class, 'index'])->name('index');
+            Route::get('/', [ShopController::class, 'index'])->middleware('permission:shop.view')->name('index');
 
-            Route::post('/store', [ShopController::class, 'store'])->name('store');
+            Route::post('/store', [ShopController::class, 'store'])->middleware('permission:shop.create')->name('store');
 
-            Route::get('/edit/{id}', [ShopController::class, 'edit'])->name('edit');
+            Route::get('/edit/{id}', [ShopController::class, 'edit'])->middleware('permission:shop.edit')->name('edit');
 
-            Route::post('/update/{id}', [ShopController::class, 'update'])->name('update');
+            Route::post('/update/{id}', [ShopController::class, 'update'])->middleware('permission:shop.edit')->name('update');
 
-            Route::post('/{id}/reset-manager-password', [ShopController::class, 'resetManagerPassword'])->name('reset-manager-password');
+            Route::post('/{id}/reset-manager-password', [ShopController::class, 'resetManagerPassword'])->middleware('permission:shop.edit')->name('reset-manager-password');
 
-            Route::delete('/delete/{id}', [ShopController::class, 'destroy'])->name('destroy');
+            Route::delete('/delete/{id}', [ShopController::class, 'destroy'])->middleware('permission:shop.delete')->name('destroy');
         });
     Route::prefix('categories')->name('categories.')->middleware(['auth'])->group(function () {
 
-        Route::get('/', [CategoryController::class, 'index'])->name('index');
+        Route::get('/', [CategoryController::class, 'index'])->middleware('permission:category.view')->name('index');
 
-        Route::post('/store', [CategoryController::class, 'store'])->name('store');
+        Route::post('/store', [CategoryController::class, 'store'])->middleware('permission:category.create')->name('store');
 
-        Route::get('/edit/{id}', [CategoryController::class, 'edit'])->name('edit');
+        Route::get('/edit/{id}', [CategoryController::class, 'edit'])->middleware('permission:category.edit')->name('edit');
 
-        Route::post('/update/{id}', [CategoryController::class, 'update'])->name('update');
+        Route::post('/update/{id}', [CategoryController::class, 'update'])->middleware('permission:category.edit')->name('update');
 
-        Route::delete('/delete/{id}', [CategoryController::class, 'destroy'])->name('destroy');
+        Route::delete('/delete/{id}', [CategoryController::class, 'destroy'])->middleware('permission:category.delete')->name('destroy');
 
     });
 
     Route::prefix('fruits')->name('fruits.')->group(function () {
-        Route::get('/', [FruitController::class, 'index'])->name('index');
-        Route::post('/store', [FruitController::class, 'store'])->name('store');
-        Route::get('/edit/{id}', [FruitController::class, 'edit'])->name('edit');
-        Route::post('/update/{id}', [FruitController::class, 'update'])->name('update');
-        Route::delete('/delete/{id}', [FruitController::class, 'destroy'])->name('destroy');
+        Route::get('/', [FruitController::class, 'index'])->middleware('permission:fruit.view')->name('index');
+        Route::post('/store', [FruitController::class, 'store'])->middleware('permission:fruit.create')->name('store');
+        Route::get('/edit/{id}', [FruitController::class, 'edit'])->middleware('permission:fruit.edit')->name('edit');
+        Route::post('/update/{id}', [FruitController::class, 'update'])->middleware('permission:fruit.edit')->name('update');
+        Route::delete('/delete/{id}', [FruitController::class, 'destroy'])->middleware('permission:fruit.delete')->name('destroy');
     });
 
     Route::prefix('boxes')->name('boxes.')->group(function () {
-        Route::get('/', [FruitBoxConfigurationController::class, 'index'])->name('index');
-        Route::post('/store', [FruitBoxConfigurationController::class, 'store'])->name('store');
-        Route::get('/edit/{id}', [FruitBoxConfigurationController::class, 'edit'])->name('edit');
-        Route::post('/update/{id}', [FruitBoxConfigurationController::class, 'update'])->name('update');
-        Route::delete('/delete/{id}', [FruitBoxConfigurationController::class, 'destroy'])->name('destroy');
+        Route::get('/', [FruitBoxConfigurationController::class, 'index'])->middleware('permission:box.view')->name('index');
+        Route::post('/store', [FruitBoxConfigurationController::class, 'store'])->middleware('permission:box.create')->name('store');
+        Route::get('/edit/{id}', [FruitBoxConfigurationController::class, 'edit'])->middleware('permission:box.edit')->name('edit');
+        Route::post('/update/{id}', [FruitBoxConfigurationController::class, 'update'])->middleware('permission:box.edit')->name('update');
+        Route::delete('/delete/{id}', [FruitBoxConfigurationController::class, 'destroy'])->middleware('permission:box.delete')->name('destroy');
     });
 
     Route::prefix('fruit-prices')->name('fruit-prices.')->group(function () {
-        Route::get('/', [FruitPriceController::class, 'index'])->name('index');
-        Route::post('/store', [FruitPriceController::class, 'store'])->name('store');
-        Route::get('/edit/{id}', [FruitPriceController::class, 'edit'])->name('edit');
-        Route::post('/update/{id}', [FruitPriceController::class, 'update'])->name('update');
-        Route::delete('/delete/{id}', [FruitPriceController::class, 'destroy'])->name('destroy');
+        Route::get('/', [FruitPriceController::class, 'index'])->middleware('permission:price.view')->name('index');
+        Route::post('/store', [FruitPriceController::class, 'store'])->middleware('permission:price.create')->name('store');
+        Route::get('/edit/{id}', [FruitPriceController::class, 'edit'])->middleware('permission:price.edit')->name('edit');
+        Route::post('/update/{id}', [FruitPriceController::class, 'update'])->middleware('permission:price.edit')->name('update');
+        Route::delete('/delete/{id}', [FruitPriceController::class, 'destroy'])->middleware('permission:price.delete')->name('destroy');
     });
 
     Route::prefix('inventory')->name('inventory.')->group(function () {
-        Route::get('/', [InventoryController::class, 'index'])->name('index');
-        Route::post('/movements', [InventoryController::class, 'storeMovement'])->name('movements.store');
+        Route::get('/', [InventoryController::class, 'index'])->middleware('permission:inventory.view')->name('index');
+        Route::post('/movements', [InventoryController::class, 'storeMovement'])
+            ->middleware('permission:inventory.create|inventory.edit|inventory.adjust')
+            ->name('movements.store');
     });
 
     Route::prefix('orders')->name('orders.')->group(function () {
-        Route::get('/', [OrderController::class, 'index'])->name('index');
-        Route::get('/warehouse-sheet', [OrderController::class, 'warehouseSheet'])->name('warehouse-sheet');
-        Route::post('/warehouse-weights', [OrderController::class, 'saveWarehouseWeights'])->name('warehouse-weights.save');
-        Route::get('/warehouse-pdf', [OrderController::class, 'warehousePdf'])->name('warehouse-pdf');
-        Route::get('/{id}', [OrderController::class, 'show'])->name('show');
-        Route::post('/{id}/weights', [OrderController::class, 'updateWeights'])->name('weights');
-        Route::get('/{id}/final-pdf', [OrderController::class, 'finalPdf'])->name('final-pdf');
-        Route::post('/{id}/status', [OrderController::class, 'updateStatus'])->name('status');
+        Route::get('/', [OrderController::class, 'index'])->middleware('permission:order.view.all')->name('index');
+        Route::get('/warehouse-sheet', [OrderController::class, 'warehouseSheet'])->middleware('permission:order.prepare')->name('warehouse-sheet');
+        Route::post('/warehouse-weights', [OrderController::class, 'saveWarehouseWeights'])->middleware('permission:order.prepare')->name('warehouse-weights.save');
+        Route::get('/warehouse-pdf', [OrderController::class, 'warehousePdf'])->middleware('permission:order.prepare')->name('warehouse-pdf');
+        Route::get('/fruit-cajas-pdf', [OrderController::class, 'fruitCajasPdf'])->middleware('permission:order.prepare')->name('fruit-cajas-pdf');
+        Route::get('/{id}', [OrderController::class, 'show'])->middleware('permission:order.view.all')->name('show');
+        Route::post('/{id}/weights', [OrderController::class, 'updateWeights'])->middleware('permission:order.prepare')->name('weights');
+        Route::get('/{id}/final-pdf', [OrderController::class, 'finalPdf'])->middleware('permission:order.view.all')->name('final-pdf');
+        Route::post('/{id}/status', [OrderController::class, 'updateStatus'])
+            ->middleware('permission:order.prepare|order.ready|order.send')
+            ->name('status');
     });
 
-    Route::get('/shortage', [ShortageController::class, 'index'])->name('shortage.index');
+    Route::get('/shortage', [ShortageController::class, 'index'])->middleware('permission:inventory.view')->name('shortage.index');
 
     Route::prefix('reports')->name('reports.')->group(function () {
         Route::get('/daily', [ReportController::class, 'daily'])
@@ -202,5 +243,5 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'password.change.req
 
     Route::get('test', function () {
         return 'Test Successful';
-    })->name('test');
+    })->middleware('role:super-admin')->name('test');
 });

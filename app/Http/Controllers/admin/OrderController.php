@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\InventoryStock;
 use App\Models\InventoryTransaction;
 use App\Models\Order;
+use App\Models\OrderItem;
 use App\Models\SystemSetting;
+use App\Support\OrderCajasSummaryBuilder;
 use App\Support\WarehousePdfItemBuilder;
 use App\Support\WarehouseWeightAllocator;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -199,6 +201,27 @@ class OrderController extends Controller
             ->download("warehouse-picking-sheet-{$date}.pdf");
     }
 
+    public function fruitCajasPdf(Request $request, OrderCajasSummaryBuilder $summaryBuilder)
+    {
+        $date = $request->validate([
+            'date' => ['nullable', 'date_format:Y-m-d'],
+        ])['date'] ?? $this->defaultOrderDate();
+
+        $shopCount = Order::query()
+            ->whereDate('order_date', $date)
+            ->whereNotNull('submitted_at')
+            ->distinct('shop_id')
+            ->count('shop_id');
+
+        return Pdf::loadView('backend.pages.orders.fruit-cajas-pdf', [
+            'date' => $date,
+            'shopCount' => $shopCount,
+            'items' => $summaryBuilder->build($date),
+        ])
+            ->setPaper('a4', 'portrait')
+            ->download("fruit-cajas-{$date}.pdf");
+    }
+
     public function show(int $id)
     {
         $order = Order::query()
@@ -214,9 +237,9 @@ class OrderController extends Controller
     public function updateWeights(Request $request, int $id)
     {
         $weights = $request->validate([
-            'weights' => ['required', 'array'],
+            'weights' => ['sometimes', 'array'],
             'weights.*' => ['required', 'numeric', 'gt:0', 'max:999999.999'],
-        ])['weights'];
+        ])['weights'] ?? [];
 
         DB::transaction(function () use ($id, $weights): void {
             $order = Order::query()->with('items')->lockForUpdate()->findOrFail($id);
@@ -226,15 +249,16 @@ class OrderController extends Controller
                 ]);
             }
 
-            $expectedIds = $order->items->pluck('id')->map(fn ($itemId) => (int) $itemId)->sort()->values();
+            $scaleItems = $order->items->filter(fn (OrderItem $item) => $this->requiresScaleWeight($item));
+            $expectedIds = $scaleItems->pluck('id')->map(fn ($itemId) => (int) $itemId)->sort()->values();
             $receivedIds = collect(array_keys($weights))->map(fn ($itemId) => (int) $itemId)->sort()->values();
             if ($expectedIds->all() !== $receivedIds->all()) {
                 throw ValidationException::withMessages([
-                    'weights' => 'Submit a weight for every item in this order.',
+                    'weights' => 'Submit a scale weight for every variable-weight item in this order.',
                 ]);
             }
 
-            foreach ($order->items as $item) {
+            foreach ($scaleItems as $item) {
                 $item->warehouse_weight_kg = $weights[$item->id];
                 $item->save();
             }
@@ -249,20 +273,42 @@ class OrderController extends Controller
     public function finalPdf(int $id)
     {
         $order = Order::query()
-            ->with(['shop', 'items.fruit', 'items.unit', 'items.boxConfiguration'])
+            ->with([
+                'shop',
+                'items.unit',
+                'items.boxConfiguration',
+                'items.fruit.boxConfigurations',
+            ])
             ->whereNotNull('submitted_at')
             ->findOrFail($id);
+        $orderDate = $order->order_date->toDateString();
+        $order->load([
+            'items.fruit.prices' => fn ($query) => $query
+                ->where('is_active', true)
+                ->whereDate('effective_from', '<=', $orderDate)
+                ->where(fn ($price) => $price->whereNull('effective_to')->orWhereDate('effective_to', '>=', $orderDate))
+                ->with('unit')
+                ->orderByDesc('effective_from'),
+        ]);
 
         abort_if(
-            $order->items->isEmpty() || $order->items->contains(fn ($item) => $item->warehouse_weight_kg === null),
+            $order->items->isEmpty() || $order->items->contains(fn (OrderItem $item) => $this->requiresScaleWeight($item)
+                && $item->warehouse_weight_kg === null),
             422,
-            'Enter and save a warehouse weight for every order item before downloading the final PDF.'
+            'Enter and save a scale weight for every variable-weight item before downloading the final PDF.'
+        );
+
+        $pdfItems = (new WarehousePdfItemBuilder)->build(collect([$order]));
+        abort_if(
+            $pdfItems->contains(fn ($item) => $item['total'] === null),
+            422,
+            'A valid per-kilogram price is required for every item before downloading the final PDF.'
         );
 
         $shop = $order->shop;
         $currency = SystemSetting::query()->where('key', 'currency')->value('value') ?: 'EUR';
 
-        return Pdf::loadView('test2', compact('shop', 'order', 'currency'))
+        return Pdf::loadView('test2', compact('shop', 'order', 'currency', 'pdfItems'))
             ->setPaper('a4', 'landscape')
             ->download("warehouse-order-{$order->id}.pdf");
     }
@@ -272,6 +318,13 @@ class OrderController extends Controller
         $data = $request->validate([
             'status' => ['required', 'in:prepared,ready,sent'],
         ]);
+
+        $requiredPermission = match ($data['status']) {
+            'prepared' => 'order.prepare',
+            'ready' => 'order.ready',
+            'sent' => 'order.send',
+        };
+        abort_unless($request->user()->can($requiredPermission), 403);
 
         DB::transaction(function () use ($id, $data): void {
             $order = Order::query()->with('items')->lockForUpdate()->findOrFail($id);
@@ -288,9 +341,11 @@ class OrderController extends Controller
             }
 
             if ($data['status'] === 'prepared') {
-                if ($order->items->isEmpty() || $order->items->contains(fn ($item) => $item->warehouse_weight_kg === null)) {
+                if ($order->items->isEmpty() || $order->items->contains(
+                    fn (OrderItem $item) => $this->requiresScaleWeight($item) && $item->warehouse_weight_kg === null
+                )) {
                     throw ValidationException::withMessages([
-                        'weights' => 'Enter and save a warehouse weight for every item before marking this order prepared.',
+                        'weights' => 'Enter and save a scale weight for every variable-weight item before marking this order prepared.',
                     ]);
                 }
 
@@ -403,6 +458,11 @@ class OrderController extends Controller
                 ]);
             }
         }
+    }
+
+    private function requiresScaleWeight(OrderItem $item): bool
+    {
+        return $item->unit_weight_kg === null || (float) $item->unit_weight_kg <= 0;
     }
 
     private function assertOrderStockAvailable(Order $order): void
