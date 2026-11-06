@@ -7,9 +7,9 @@
     <div class="d-flex flex-wrap align-items-center justify-content-between mb-4">
         <div><h3 class="mb-1 text-primary font-weight-bold">Shop Orders</h3><p class="text-muted mb-0">Review submitted orders and advance warehouse fulfilment status.</p></div>
         <div class="mt-2 mt-md-0">
-            <button type="button" class="btn btn-primary" id="warehouseSheetBtn"><i class="fa fa-balance-scale"></i> All Shops Warehouse Sheet</button>
+            {{-- <button type="button" class="btn btn-primary" id="warehouseSheetBtn"><i class="fa fa-balance-scale"></i> All Shops Warehouse Sheet</button> --}}
             <button type="button" class="btn btn-success" id="fruitCajasPdfBtn"><i class="fa fa-file-pdf-o"></i> Fruit Cajas PDF</button>
-            <a href="{{ route('admin.shortage.index') }}" class="btn btn-outline-warning"><i class="fa fa-exclamation-triangle"></i> Stock shortages</a>
+            {{-- <a href="{{ route('admin.shortage.index') }}" class="btn btn-outline-warning"><i class="fa fa-exclamation-triangle"></i> Stock shortages</a> --}}
         </div>
     </div>
     <div id="ordersAlert"></div>
