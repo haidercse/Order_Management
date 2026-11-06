@@ -245,3 +245,15 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'password.change.req
         return 'Test Successful';
     })->middleware('role:super-admin')->name('test');
 });
+
+
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Http\Request;
+
+Route::get('refresh', function () {
+
+    Artisan::call('migrate:fresh', ['--seed' => true, '--force' => true]);
+    Artisan::call('optimize:clear');
+
+   return 'hi';
+});
