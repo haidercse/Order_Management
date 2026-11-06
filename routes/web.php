@@ -247,13 +247,13 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'password.change.req
 });
 
 
-use Illuminate\Support\Facades\Artisan;
+// use Illuminate\Support\Facades\Artisan;
 
 
-Route::get('refresh', function () {
+// Route::get('refresh', function () {
 
-    Artisan::call('migrate:fresh', ['--seed' => true, '--force' => true]);
-    Artisan::call('optimize:clear');
+//     Artisan::call('migrate:fresh', ['--seed' => true, '--force' => true]);
+//     Artisan::call('optimize:clear');
 
-   return 'hi';
-});
+//    return 'hi';
+// });
