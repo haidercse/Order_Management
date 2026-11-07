@@ -68,6 +68,10 @@ class AuthController extends Controller
 
             $request->session()->regenerate();
 
+            if ($authenticatedUser->hasRole('warehouse-manager')) {
+                return redirect()->route('admin.orders.index');
+            }
+
             return redirect()->route('home');
         }
 
