@@ -38,12 +38,12 @@ class WarehousePdfItemBuilder
                 $kilogramPrice = $fruit->prices->first(
                     fn ($price) => $price->unit?->code === 'KG' && $price->box_configuration_id === null
                 );
-                $allWeightsAvailable = $items->every(fn ($item) => (float) $item->unit_weight_kg > 0
-                    || $item->warehouse_weight_kg !== null);
+                $allWeightsAvailable = $items->every(fn ($item) => $item->warehouse_weight_kg !== null
+                    || (float) $item->unit_weight_kg > 0);
                 $totalWeight = $allWeightsAvailable
-                    ? round($items->sum(fn ($item) => (float) $item->unit_weight_kg > 0
-                        ? (float) $item->quantity * (float) $item->unit_weight_kg
-                        : (float) $item->warehouse_weight_kg), 3, PHP_ROUND_HALF_UP)
+                    ? round($items->sum(fn ($item) => $item->warehouse_weight_kg !== null
+                        ? (float) $item->warehouse_weight_kg
+                        : (float) $item->quantity * (float) $item->unit_weight_kg), 3, PHP_ROUND_HALF_UP)
                     : null;
                 $netWeight = $totalWeight !== null
                     ? round($totalWeight - $totalTare, 3, PHP_ROUND_HALF_UP)
@@ -51,9 +51,9 @@ class WarehousePdfItemBuilder
                 $lineTotals = $netWeight === null
                     ? collect()
                     : $items->map(function ($item) use ($kilogramPrice, $box, $boxPrice, $boxWeight) {
-                        $itemWeight = (float) $item->unit_weight_kg > 0
-                            ? (float) $item->quantity * (float) $item->unit_weight_kg
-                            : (float) $item->warehouse_weight_kg;
+                        $itemWeight = $item->warehouse_weight_kg !== null
+                            ? (float) $item->warehouse_weight_kg
+                            : (float) $item->quantity * (float) $item->unit_weight_kg;
                         $itemTare = (float) $item->quantity * (float) (
                             $item->unit_tare_kg ?? $box?->tare_weight_kg ?? 0
                         );

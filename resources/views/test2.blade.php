@@ -70,6 +70,6 @@
             </tr>
         </tfoot>
     </table>
-    <p class="note">NO is the number of boxes. For fixed-weight boxes, T KILO = NO × KILO; otherwise T KILO is the saved scale weight. NETTO = T KILO − (NO × TARA). TOTAL is rounded to two decimals; the grand total is rounded to the nearest whole currency unit.</p>
+    <p class="note">T KILO is the saved scale weight for each item. NETTO = T KILO − (NO × TARA). TOTAL is rounded to two decimals; the grand total is rounded to the nearest whole currency unit.</p>
 </body>
 </html>

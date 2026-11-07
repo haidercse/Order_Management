@@ -13,7 +13,7 @@ use PHPUnit\Framework\TestCase;
 
 class WarehousePdfItemBuilderTest extends TestCase
 {
-    public function test_fixed_weight_box_uses_quantity_times_kilo_instead_of_scale_weight(): void
+    public function test_fixed_weight_box_uses_saved_scale_weight_when_available(): void
     {
         $fruit = new Fruit;
         $fruit->id = 5;
@@ -70,10 +70,10 @@ class WarehousePdfItemBuilderTest extends TestCase
         $this->assertSame(2.0, $result['quantity']);
         $this->assertSame(0.5, $result['tare']);
         $this->assertSame(1.0, $result['total_tare']);
-        $this->assertSame(24.0, $result['total_weight']);
-        $this->assertSame(23.0, $result['net_weight']);
+        $this->assertSame(24.4, $result['total_weight']);
+        $this->assertSame(23.4, $result['net_weight']);
         $this->assertSame(0.8, $result['price']);
-        $this->assertSame(18.4, $result['total']);
+        $this->assertSame(18.72, $result['total']);
     }
 
     public function test_variable_weight_box_uses_saved_scale_weight_and_rounds_line_total_half_up(): void

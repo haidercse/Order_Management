@@ -220,6 +220,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'password.change.req
         Route::post('/warehouse-weights', [OrderController::class, 'saveWarehouseWeights'])->middleware('permission:order.prepare')->name('warehouse-weights.save');
         Route::get('/warehouse-pdf', [OrderController::class, 'warehousePdf'])->middleware('permission:order.prepare')->name('warehouse-pdf');
         Route::get('/fruit-cajas-pdf', [OrderController::class, 'fruitCajasPdf'])->middleware('permission:order.prepare')->name('fruit-cajas-pdf');
+        Route::get('/fruit-cajas-excel', [OrderController::class, 'fruitCajasExcel'])->middleware('permission:order.prepare')->name('fruit-cajas-excel');
         Route::get('/{id}', [OrderController::class, 'show'])->middleware('permission:order.view.all')->name('show');
         Route::post('/{id}/weights', [OrderController::class, 'updateWeights'])->middleware('permission:order.prepare')->name('weights');
         Route::get('/{id}/final-pdf', [OrderController::class, 'finalPdf'])->middleware('permission:order.view.all')->name('final-pdf');

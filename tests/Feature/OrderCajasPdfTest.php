@@ -53,10 +53,51 @@ class OrderCajasPdfTest extends TestCase
             'shopCount' => 2,
             'items' => app(OrderCajasSummaryBuilder::class)->build($date),
         ])->render();
-        $this->assertStringContainsString('<th>Fruit</th>', $html);
-        $this->assertStringContainsString('<th>Cajas</th>', $html);
+        $this->assertSame(4, substr_count($html, '<th>Fruit / Cajas</th>'));
+        $this->assertStringContainsString('Apple', $html);
+        $this->assertStringContainsString('cajas', $html);
         $this->assertStringNotContainsString('Price', $html);
         $this->assertStringNotContainsString('PRECIO', $html);
+    }
+
+    public function test_fruit_cajas_pdf_places_four_fruits_on_each_row(): void
+    {
+        $items = collect(range(1, 9))->map(fn (int $number) => (object) [
+            'name' => "Fruit {$number}",
+            'cajas' => $number,
+        ]);
+
+        $html = view('backend.pages.orders.fruit-cajas-pdf', [
+            'date' => '2026-10-07',
+            'shopCount' => 1,
+            'items' => $items,
+        ])->render();
+
+        $this->assertSame(4, substr_count($html, '<th>Fruit / Cajas</th>'));
+        $this->assertSame(4, substr_count($html, '<tr>'));
+        $this->assertStringContainsString('Fruit 1', $html);
+        $this->assertStringContainsString('Fruit 4', $html);
+        $this->assertStringContainsString('Fruit 9', $html);
+        $this->assertSame(3, substr_count($html, '<td></td>'));
+    }
+
+    public function test_fruit_cajas_excel_download_contains_fruit_and_cajas_for_the_selected_date(): void
+    {
+        [$date] = $this->createOrders();
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        $role = Role::create(['name' => 'warehouse-manager', 'guard_name' => 'web']);
+        $role->givePermissionTo(Permission::create(['name' => 'order.prepare', 'guard_name' => 'web']));
+        $user = User::factory()->create();
+        $user->assignRole($role);
+
+        $response = $this->actingAs($user)
+            ->get(route('admin.orders.fruit-cajas-excel', ['date' => $date]));
+
+        $response->assertOk()->assertDownload("fruit-cajas-{$date}.csv");
+        $csv = $response->streamedContent();
+        $this->assertStringStartsWith("\xEF\xBB\xBFFruit,Cajas", $csv);
+        $this->assertStringContainsString('Apple,5.5', $csv);
+        $this->assertStringContainsString('Orange,4', $csv);
     }
 
     private function createOrders(): array

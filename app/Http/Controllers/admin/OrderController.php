@@ -222,6 +222,34 @@ class OrderController extends Controller
             ->download("fruit-cajas-{$date}.pdf");
     }
 
+    public function fruitCajasExcel(Request $request, OrderCajasSummaryBuilder $summaryBuilder)
+    {
+        $date = $request->validate([
+            'date' => ['nullable', 'date_format:Y-m-d'],
+        ])['date'] ?? $this->defaultOrderDate();
+        $items = $summaryBuilder->build($date);
+
+        return response()->streamDownload(function () use ($items): void {
+            $output = fopen('php://output', 'w');
+            if ($output === false) {
+                throw new \RuntimeException('Unable to create the Fruit Cajas Excel export.');
+            }
+
+            fwrite($output, "\xEF\xBB\xBF");
+            fputcsv($output, ['Fruit', 'Cajas']);
+            foreach ($items as $item) {
+                fputcsv($output, [
+                    $item->name,
+                    rtrim(rtrim(number_format((float) $item->cajas, 3, '.', ''), '0'), '.'),
+                ]);
+            }
+
+            fclose($output);
+        }, "fruit-cajas-{$date}.csv", [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
     public function show(int $id)
     {
         $order = Order::query()
@@ -249,16 +277,15 @@ class OrderController extends Controller
                 ]);
             }
 
-            $scaleItems = $order->items->filter(fn (OrderItem $item) => $this->requiresScaleWeight($item));
-            $expectedIds = $scaleItems->pluck('id')->map(fn ($itemId) => (int) $itemId)->sort()->values();
+            $expectedIds = $order->items->pluck('id')->map(fn ($itemId) => (int) $itemId)->sort()->values();
             $receivedIds = collect(array_keys($weights))->map(fn ($itemId) => (int) $itemId)->sort()->values();
             if ($expectedIds->all() !== $receivedIds->all()) {
                 throw ValidationException::withMessages([
-                    'weights' => 'Submit a scale weight for every variable-weight item in this order.',
+                    'weights' => 'Submit a scale weight for every item in this order.',
                 ]);
             }
 
-            foreach ($scaleItems as $item) {
+            foreach ($order->items as $item) {
                 $item->warehouse_weight_kg = $weights[$item->id];
                 $item->save();
             }
@@ -266,7 +293,7 @@ class OrderController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'message' => 'Warehouse weights saved.',
+            'message' => 'Scale weights saved.',
         ]);
     }
 
@@ -292,10 +319,9 @@ class OrderController extends Controller
         ]);
 
         abort_if(
-            $order->items->isEmpty() || $order->items->contains(fn (OrderItem $item) => $this->requiresScaleWeight($item)
-                && $item->warehouse_weight_kg === null),
+            $order->items->isEmpty() || $order->items->contains(fn (OrderItem $item) => $item->warehouse_weight_kg === null),
             422,
-            'Enter and save a scale weight for every variable-weight item before downloading the final PDF.'
+            'Enter and save a scale weight for every item before downloading the final PDF.'
         );
 
         $pdfItems = (new WarehousePdfItemBuilder)->build(collect([$order]));
@@ -342,10 +368,10 @@ class OrderController extends Controller
 
             if ($data['status'] === 'prepared') {
                 if ($order->items->isEmpty() || $order->items->contains(
-                    fn (OrderItem $item) => $this->requiresScaleWeight($item) && $item->warehouse_weight_kg === null
+                    fn (OrderItem $item) => $item->warehouse_weight_kg === null
                 )) {
                     throw ValidationException::withMessages([
-                        'weights' => 'Enter and save a scale weight for every variable-weight item before marking this order prepared.',
+                        'weights' => 'Enter and save a scale weight for every item before marking this order prepared.',
                     ]);
                 }
 
@@ -458,11 +484,6 @@ class OrderController extends Controller
                 ]);
             }
         }
-    }
-
-    private function requiresScaleWeight(OrderItem $item): bool
-    {
-        return $item->unit_weight_kg === null || (float) $item->unit_weight_kg <= 0;
     }
 
     private function assertOrderStockAvailable(Order $order): void
