@@ -52,14 +52,14 @@
         .shop-orders-page .fruit-card { justify-content: space-between; gap: 4px; padding: 8px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.04); transition: border-color .15s, background-color .15s; }
         .shop-orders-page .fruit-card.is-selected { border-color: #34d399; background: #f3fcf8; }
         .shop-orders-page .fruit-info { flex: 1; min-width: 0; padding-right: 2px; }
-        .shop-orders-page .fruit-name { overflow: hidden; color: #1f2937; font-size: 11px; font-weight: 700; letter-spacing: -.01em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+        .shop-orders-page .fruit-name { overflow: hidden; color: #1f2937; font-size: 9px; font-weight: 700; letter-spacing: -.01em; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
         .shop-orders-page .fruit-unavailable { display: block; margin-top: 2px; font-size: 10px; white-space: normal; }
         .shop-orders-page .fruit-card select { max-width: 100%; min-height: 26px; margin-top: 4px; padding: 2px 4px; font-size: 10px; }
-        .shop-orders-page .fruit-quantity-controls { display: flex; flex: 0 0 auto; align-items: center; gap: 4px; padding: 2px; border: 1px solid #e5e7eb; border-radius: 6px; background: #f9fafb; }
-        .shop-orders-page .fruit-quantity-step { display: inline-flex; width: 28px; min-width: 28px; height: 28px; align-items: center; justify-content: center; padding: 0; border: 1px solid #e5e7eb; border-radius: 5px; background: #fff; color: #374151; cursor: pointer; font-size: 14px; font-weight: 800; }
+        .shop-orders-page .fruit-quantity-controls { display: flex; flex: 0 0 auto; align-items: center; gap: 2px; padding: 2px; border: 1px solid #e5e7eb; border-radius: 6px; background: #f9fafb; }
+        .shop-orders-page .fruit-quantity-step { display: inline-flex; width: 24px; min-width: 24px; height: 24px; align-items: center; justify-content: center; padding: 0; border: 1px solid #e5e7eb; border-radius: 5px; background: #fff; color: #374151; cursor: pointer; font-size: 12px; font-weight: 800; }
         .shop-orders-page .fruit-quantity-step:active { transform: scale(.95); }
         .shop-orders-page .fruit-quantity-step.add { border-color: #16a34a; background: #16a34a; color: #fff; }
-        .shop-orders-page .fruit-input { width: 30px; min-height: 28px; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; font-size: 12px; font-weight: 800; -moz-appearance: textfield; }
+        .shop-orders-page .fruit-input { width: 2ch; min-width: 2ch; min-height: 24px; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; font-size: 11px; font-weight: 800; -moz-appearance: textfield; }
         .shop-orders-page .fruit-input::-webkit-outer-spin-button, .shop-orders-page .fruit-input::-webkit-inner-spin-button { margin: 0; -webkit-appearance: none; }
         .shop-orders-page .fruit-input:focus { outline: 2px solid rgba(22,163,74,.3); }
         .shop-orders-page .fruit-card.has-box-choice { flex-wrap: wrap; }
@@ -389,7 +389,7 @@
                 <label class="sr-only" for="fruit-quantity-${fruit.id}">Quantity in Cajas for ${escapeHtml(fruit.name)}</label>
                 <div class="fruit-quantity-controls">
                     <button class="fruit-quantity-step" type="button" data-quantity-step="-1" data-fruit-id="${fruit.id}" aria-label="Decrease ${escapeHtml(fruit.name)} by one Caja">−</button>
-                    <input class="fruit-input" id="fruit-quantity-${fruit.id}" data-fruit-quantity="${fruit.id}" type="number" min="0" step="1" inputmode="numeric" value="${escapeHtml(quantity)}" placeholder="0" aria-label="Cajas of ${escapeHtml(fruit.name)}">
+                    <input class="fruit-input" id="fruit-quantity-${fruit.id}" data-fruit-quantity="${fruit.id}" type="number" min="0" max="99" step="1" inputmode="numeric" value="${escapeHtml(quantity)}" placeholder="0" aria-label="Cajas of ${escapeHtml(fruit.name)}">
                     <button class="fruit-quantity-step add" type="button" data-quantity-step="1" data-fruit-id="${fruit.id}" aria-label="Increase ${escapeHtml(fruit.name)} by one Caja">+</button>
                 </div>
             </article>`;
@@ -426,6 +426,10 @@
     }
 
     function setQuantity(fruitId, quantity) {
+        if (quantity > 99) {
+            showMessage('Maximum quantity is 99 Cajas per fruit.', true);
+            return;
+        }
         if (quantity > 0) {
             quantities.set(fruitId, String(quantity));
         } else {
@@ -573,6 +577,11 @@
         if (input.value !== '' && !/^\d+$/.test(input.value)) {
             input.value = previousValue;
             showMessage('Enter a whole number of Cajas (1, 2, 3...).', true);
+            return;
+        }
+        if (Number(input.value) > 99) {
+            input.value = previousValue;
+            showMessage('Maximum quantity is 99 Cajas per fruit.', true);
             return;
         }
         if (input.value === '') {

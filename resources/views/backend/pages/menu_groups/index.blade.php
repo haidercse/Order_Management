@@ -25,6 +25,7 @@
                             <tr>
                                 <th>Name</th>
                                 <th>Order</th>
+                                <th>Status</th>
                                 <th width="150">Action</th>
                             </tr>
                         </thead>
@@ -34,9 +35,11 @@
                                 <tr id="group-{{ $group->id }}">
                                     <td>{{ $group->name }}</td>
                                     <td>{{ $group->order }}</td>
+                                    <td>{{ $group->status ? 'Active' : 'Inactive' }}</td>
                                     <td>
                                         <button class="btn btn-sm btn-warning edit-group" data-id="{{ $group->id }}"
-                                            data-name="{{ $group->name }}" data-order="{{ $group->order }}">
+                                            data-name="{{ $group->name }}" data-order="{{ $group->order }}"
+                                            data-status="{{ $group->status ? '1' : '0' }}">
                                             <i class="fa fa-edit"></i>
                                         </button>
 
@@ -76,7 +79,15 @@
 
                         <div class="mb-3">
                             <label class="form-label fw-semibold">Order</label>
-                            <input type="number" class="form-control" id="order" name="order" required>
+                            <input type="number" class="form-control" id="order" name="order" min="0" required>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold" for="group_status">Status</label>
+                            <select class="form-control" id="group_status" name="status" required>
+                                <option value="1">Active</option>
+                                <option value="0">Inactive</option>
+                            </select>
                         </div>
 
                         <button type="submit" class="btn btn-success w-100" id="saveBtn">Save</button>
@@ -95,14 +106,25 @@
 
             function showAlert(type, message) {
                 let alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
-                $('#alertBox').html(`
-            <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-        `);
+                const alert = $('<div>', {
+                    class: `alert ${alertClass} alert-dismissible fade show`,
+                    role: 'alert'
+                }).text(message);
+                alert.append($('<button>', {
+                    type: 'button',
+                    class: 'btn-close',
+                    'data-bs-dismiss': 'alert',
+                    'aria-label': 'Close'
+                }));
+                $('#alertBox').empty().append(alert);
 
                 setTimeout(() => $('.alert').alert('close'), 4000);
+            }
+
+            function responseError(xhr) {
+                const errors = xhr.responseJSON?.errors;
+                if (errors) return Object.values(errors).flat().join(' ');
+                return xhr.responseJSON?.message || 'Something went wrong!';
             }
 
             // Add Button
@@ -110,6 +132,7 @@
                 $('#modalTitle').text("Add Menu Group");
                 $('#groupForm')[0].reset();
                 $('#group_id').val('');
+                $('#group_status').val('1');
 
                 $('#saveBtn').removeClass('btn-warning').addClass('btn-success').text("Save");
                 $('#groupModal').modal('show');
@@ -123,6 +146,7 @@
                 let url = id ? `/admin/menu-groups/update/${id}` :
                     "{{ route('admin.menu-groups.store.ajax') }}";
 
+                $('#saveBtn').prop('disabled', true);
                 $.ajax({
                     url: url,
                     method: "POST",
@@ -132,8 +156,11 @@
                         reloadTable();
                         showAlert('success', "Menu Group saved successfully!");
                     },
-                    error: function() {
-                        showAlert('error', "Something went wrong!");
+                    error: function(xhr) {
+                        showAlert('error', responseError(xhr));
+                    },
+                    complete: function() {
+                        $('#saveBtn').prop('disabled', false);
                     }
                 });
             });
@@ -145,6 +172,7 @@
                 $('#group_id').val($(this).data('id'));
                 $('#name').val($(this).data('name'));
                 $('#order').val($(this).data('order'));
+                $('#group_status').val(String($(this).data('status')));
 
                 $('#saveBtn').removeClass('btn-success').addClass('btn-warning').text("Update");
 
@@ -167,8 +195,8 @@
                         $(`#group-${id}`).remove();
                         showAlert('success', "Menu Group deleted successfully!");
                     },
-                    error: function() {
-                        showAlert('error', "Failed to delete!");
+                    error: function(xhr) {
+                        showAlert('error', responseError(xhr));
                     }
                 });
             });
@@ -177,6 +205,8 @@
             function reloadTable() {
                 $.get("{{ route('admin.menu-groups.index') }}", function(data) {
                     $('#groupTableWrapper').html($(data).find('#groupTableWrapper').html());
+                }).fail(function(xhr) {
+                    showAlert('error', responseError(xhr));
                 });
             }
 

@@ -5,39 +5,36 @@ namespace App\Http\Controllers\admin;
 use App\Http\Controllers\Controller;
 use App\Models\MenuGroup;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class MenuGroupController extends Controller
 {
     public function index()
     {
         $groups = MenuGroup::orderBy('order')->get();
+
         return view('backend.pages.menu_groups.index', compact('groups'));
     }
 
     public function storeAjax(Request $request)
     {
-        $request->validate([
-            'name' => 'required',
-            'order' => 'required|integer',
-        ]);
-
-        $group = MenuGroup::create($request->all());
+        $data = $this->validatedGroupData($request);
+        $group = MenuGroup::create($data);
 
         return response()->json([
             'status' => 'success',
-            'group' => $group
+            'group' => $group,
         ]);
     }
 
     public function updateAjax(Request $request, $id)
     {
         $group = MenuGroup::findOrFail($id);
-
-        $group->update($request->all());
+        $group->update($this->validatedGroupData($request, $group));
 
         return response()->json([
             'status' => 'success',
-            'group' => $group
+            'group' => $group,
         ]);
     }
 
@@ -46,7 +43,20 @@ class MenuGroupController extends Controller
         MenuGroup::findOrFail($id)->delete();
 
         return response()->json([
-            'status' => 'success'
+            'status' => 'success',
         ]);
+    }
+
+    private function validatedGroupData(Request $request, ?MenuGroup $group = null): array
+    {
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255', Rule::unique('menu_groups', 'name')->ignore($group?->id)],
+            'order' => 'required|integer|min:0',
+            'status' => 'sometimes|boolean',
+        ]);
+
+        $data['status'] = $data['status'] ?? $group?->status ?? true;
+
+        return $data;
     }
 }
