@@ -12,11 +12,16 @@
 
 <div class="d-flex align-items-center justify-content-between mb-2">
     <h6 class="mb-0">Order details and scale weights</h6>
-    @if ($weightsComplete)
-        <a class="btn btn-sm btn-primary" href="{{ route('admin.orders.final-pdf', $order->id) }}" target="_blank" rel="noopener">Generate PDF</a>
-    @else
-        <span class="text-muted">Save all scale weights to generate the PDF.</span>
-    @endif
+    <div class="d-flex align-items-center">
+        @if ($order->items->isNotEmpty())
+            <a class="btn btn-sm btn-outline-primary mr-2" href="{{ route('admin.orders.delivery-pdf', $order->id) }}" target="_blank" rel="noopener">Delivery PDF</a>
+        @endif
+        @if ($weightsComplete)
+            <a class="btn btn-sm btn-primary" href="{{ route('admin.orders.final-pdf', $order->id) }}" target="_blank" rel="noopener">Generate PDF</a>
+        @else
+            <span class="text-muted">Save all scale weights to generate the PDF.</span>
+        @endif
+    </div>
 </div>
 
 <form id="orderWeightsForm" action="{{ route('admin.orders.weights', $order->id) }}">

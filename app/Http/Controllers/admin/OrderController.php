@@ -297,6 +297,22 @@ class OrderController extends Controller
         ]);
     }
 
+    public function deliveryPdf(int $id)
+    {
+        $order = Order::query()
+            ->with(['shop', 'items.fruit'])
+            ->whereNotNull('submitted_at')
+            ->findOrFail($id);
+
+        abort_if($order->items->isEmpty(), 422, 'This order has no fruit items to deliver.');
+
+        $warehouseName = SystemSetting::query()->where('key', 'warehouse_name')->value('value') ?: 'Warehouse';
+
+        return Pdf::loadView('backend.pages.orders.delivery-pdf', compact('order', 'warehouseName'))
+            ->setPaper('a4')
+            ->download("delivery-order-{$order->id}.pdf");
+    }
+
     public function finalPdf(int $id)
     {
         $order = Order::query()

@@ -30,12 +30,14 @@ class AdminOrderDetailsTest extends TestCase
         $this->assertStringNotContainsString('Fixed weight', $html);
         $this->assertStringContainsString('Save all scale weights to generate the PDF.', $html);
         $this->assertStringNotContainsString('>Generate PDF</a>', $html);
+        $this->assertStringContainsString('>Delivery PDF</a>', $html);
 
         $order = $this->makeOrderWithScaleWeights(['12.500', '8.250']);
 
         $html = view('backend.pages.orders.partials.details', compact('order'))->render();
 
         $this->assertStringContainsString('>Generate PDF</a>', $html);
+        $this->assertStringContainsString('>Delivery PDF</a>', $html);
         $this->assertStringNotContainsString('Save all scale weights to generate the PDF.', $html);
     }
 

@@ -164,6 +164,39 @@ class OrderPdfTemplatesTest extends TestCase
         $this->assertStringStartsWith('%PDF', \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html)->setPaper('a4', 'landscape')->output());
     }
 
+    public function test_delivery_pdf_shows_shop_details_delivery_date_and_only_fruit_and_cajas(): void
+    {
+        [$shop, $order, , $item] = $this->makeOrderData();
+        $shop->address = '12 Market Street';
+        $shop->city = 'Madrid';
+        $shop->phone = '+34 600 123 456';
+        $shop->email = 'shop@example.test';
+        $shop->manager_name = 'Shop Manager';
+        $order->setRelation('shop', $shop);
+        $order->setRelation('items', collect([$item]));
+
+        $html = view('backend.pages.orders.delivery-pdf', [
+            'order' => $order,
+            'warehouseName' => 'Central Produce Warehouse',
+        ])->render();
+
+        $this->assertStringContainsString('DELIVERY NOTE', $html);
+        $this->assertStringContainsString('Central Produce Warehouse', $html);
+        $this->assertStringContainsString('Test Shop (TEST-SHOP)', $html);
+        $this->assertStringContainsString('Shop Manager', $html);
+        $this->assertStringContainsString('12 Market Street, Madrid', $html);
+        $this->assertStringContainsString('+34 600 123 456', $html);
+        $this->assertStringContainsString('shop@example.test', $html);
+        $this->assertStringContainsString('07/10/2026', $html);
+        $this->assertStringContainsString('<th>Fruit</th>', $html);
+        $this->assertStringContainsString('Cajas</th>', $html);
+        $this->assertStringContainsString('AGUACATE C', $html);
+        $this->assertStringContainsString('>3</td>', $html);
+        $this->assertStringNotContainsString('Scale weight', $html);
+        $this->assertStringNotContainsString('PRICE / KG', $html);
+        $this->assertStringStartsWith('%PDF', \Barryvdh\DomPDF\Facade\Pdf::loadHTML($html)->setPaper('a4')->output());
+    }
+
     public function test_consolidated_warehouse_pdf_shows_the_combined_quantity_and_saved_weight(): void
     {
         $html = view('backend.pages.orders.warehouse-pdf', [
